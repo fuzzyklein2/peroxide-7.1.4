@@ -1,0 +1,14 @@
+[package]
+name = "peroxide"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+env_logger = "0.11.11"
+log = "0.4.34"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+chrono = "0.4"
+json = "0.12"
+crossterm = "0.29"
+
