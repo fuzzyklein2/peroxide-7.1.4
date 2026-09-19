@@ -1,7 +1,8 @@
-use std::env;
-use std::io::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Error};
+use std::env;
+use std::path::{Path, PathBuf};
 
 use crate::constants::{ BASE_DIR, FOLDER_PICT };
 use crate::logging::{ error, log_file_name };
@@ -72,9 +73,11 @@ impl FileSystem {
     }
 }
 
-/*
-match std::env::current_dir() {
-    Ok(path) => println!("Current directory: {}", path.display()),
-    Err(e) => eprintln!("Couldn't get current directory: {e}"),
+
+
+pub fn read_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, io::Error> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    reader.lines().collect()
 }
-*/

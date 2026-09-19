@@ -1,4 +1,6 @@
+#![allow(warnings)]
 use std::io::{ self, Error, Write, stdout };
+use std::path::{Path, PathBuf};
 use std::sync::{ mpsc, OnceLock };
 use std::thread;
 use std::time::Duration;
@@ -24,7 +26,7 @@ mod utilities;
 
 use config::JSON;
 use constants::{ BASE_DIR, FOLDER_PICT };
-use files::{ cwd, FileSystem, home, pwd };
+use files::{ cwd, FileSystem, home, pwd, read_lines };
 use getargs::{ Args, get_piped_input };
 use logging::{ error, warn, info, debug, trace, init_log };
 use utilities::program_name;
@@ -92,10 +94,18 @@ Log file:           {}
 
 
     if let Some(input) = INPUT.get() {
-    debug(&format!(r#"Piped Input:
+        debug(&format!(r#"Piped Input:
 {}
 "#, input
 ));
+    } else {
+        trace("No piped input");
+        let nargs = args.args.len();
+        trace(&format!("{} arguments given", nargs));
+        if nargs > 0 {
+            let song_list = read_lines(&args.args[0]);
+        }
+
     }
 
 /*
