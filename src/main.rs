@@ -26,7 +26,7 @@ mod utilities;
 
 use config::JSON;
 use constants::{ BASE_DIR, FOLDER_PICT };
-use files::{ cwd, FileSystem, home, pwd, read_lines };
+use files::{ cwd, FileSystem, get_most_recent_song_list, home, pwd, read_lines };
 use getargs::{ Args, get_piped_input };
 use logging::{ error, warn, info, debug, trace, init_log };
 use utilities::program_name;
@@ -34,6 +34,8 @@ use utilities::program_name;
 static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
 static CONFIGURATION: OnceLock<JSON> = OnceLock::new();
 static INPUT: OnceLock<String> = OnceLock::new();
+
+static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
 
 fn main() -> Result<(), Error> {
     println!("Running the program");
@@ -92,21 +94,20 @@ Log file:           {}
 "#, json::stringify_pretty(CONFIGURATION.get().unwrap().value.clone(), 4)
 ));
 
-
+    let nargs = args.args.len();
+    let mut song_list = Vec::<String>::new();
     if let Some(input) = INPUT.get() {
-        debug(&format!(r#"Piped Input:
-{}
-"#, input
-));
+        song_list = input.lines().map(str::to_owned).collect();;
+    } else if nargs > 0 {
+        song_list = read_lines(&args.args[0])?;
     } else {
-        trace("No piped input");
-        let nargs = args.args.len();
-        trace(&format!("{} arguments given", nargs));
-        if nargs > 0 {
-            let song_list = read_lines(&args.args[0]);
-        }
-
+        song_list = get_most_recent_song_list()?;
     }
+    while song_list.last().is_some_and(|s| s.is_empty()) {
+        song_list.pop();
+    }
+    SONG_LIST.set(song_list);
+    trace(&format!("Songs: {:#?}", SONG_LIST.get().unwrap()));
 
 /*
     let status_label = "Status".with(Color::Cyan);
