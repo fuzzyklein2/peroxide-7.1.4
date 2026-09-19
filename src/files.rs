@@ -83,6 +83,6 @@ pub fn read_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, io::Error> {
     reader.lines().collect()
 }
 
-pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
-    Ok(["this", "is", "bullshit", ":D"].map(|s| s.to_owned()).to_vec())
-}
+// pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
+//     Ok(["this", "is", "bullshit", ":D"].map(|s| s.to_owned()).to_vec())
+// }

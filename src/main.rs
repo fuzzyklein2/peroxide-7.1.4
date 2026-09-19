@@ -24,12 +24,16 @@ mod files;
 mod logging;
 mod utilities;
 
+mod peroxide;
+
 use config::JSON;
 use constants::{ BASE_DIR, FOLDER_PICT };
-use files::{ cwd, FileSystem, get_most_recent_song_list, home, pwd, read_lines };
+use files::{ cwd, FileSystem, home, pwd, read_lines };
 use getargs::{ Args, get_piped_input };
 use logging::{ error, warn, info, debug, trace, init_log };
 use utilities::program_name;
+
+use peroxide::get_most_recent_song_list;
 
 static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
 static CONFIGURATION: OnceLock<JSON> = OnceLock::new();
