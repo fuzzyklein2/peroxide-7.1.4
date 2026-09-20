@@ -11,4 +11,4 @@ dirs = "6"
 chrono = "0.4"
 json = "0.12"
 crossterm = "0.29"
-
+maudio = "0.1.14"
