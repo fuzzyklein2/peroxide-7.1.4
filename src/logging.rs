@@ -2,8 +2,12 @@ use chrono::Local;
 use std::io::{ Error, Write };
 use std::fs::{ File, write };
 
+use env_logger;
+use log::LevelFilter;
+
 use crate::utilities::rotate_log_files;
 use crate::FILE_SYSTEM;
+use crate::ARGUMENTS;
 
 use crate::constants::{ ERROR_PICT, WARN_PICT, INFO_PICT, DEBUG_PICT, TRACE_PICT, CHECK_PICT, FAILURE_PICT };
 
@@ -62,6 +66,24 @@ pub fn log_file_name() -> String {
 }
 
 pub fn init_log() -> Result<(), Error> {
+    let level = if ARGUMENTS.get().unwrap().trace {
+        LevelFilter::Trace
+    } else if ARGUMENTS.get().unwrap().debug {
+        LevelFilter::Debug
+    } else if ARGUMENTS.get().unwrap().verbose {
+        LevelFilter::Info
+    } else if ARGUMENTS.get().unwrap().warnings {
+        LevelFilter::Warn
+    } else {
+        LevelFilter::Error
+    };
+
+    // env_logger::init();
+    env_logger::Builder::new().filter_level(level).format(|buf, record| {
+        writeln!(buf, "{} {}", record.level(), record.args())
+    }).init();
+
+
     File::create_new(FILE_SYSTEM.get().unwrap().log_file.clone())?;
         rotate_log_files();
     Ok(())

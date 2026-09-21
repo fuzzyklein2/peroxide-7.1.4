@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::io::{ self, IsTerminal, Read };
 
+#[derive(Debug)]
 #[derive(Parser)]
 #[command(version)]
 pub struct Args {
