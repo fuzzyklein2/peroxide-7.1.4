@@ -1,11 +1,12 @@
 use std::fs;
 use std::io::{ self, Error, Write, stdout };
 use std::path::{ PathBuf };
-use std::sync::{ mpsc, OnceLock };
+use std::sync::{ mpsc, mpsc::{ channel, Sender, Receiver }, Mutex, OnceLock };
 use std::thread;
 use std::time::Duration;
 
 use crossterm::{ execute, ExecutableCommand, QueueableCommand,
+    event::{ KeyEvent },
     terminal::{ Clear, ClearType, disable_raw_mode, enable_raw_mode },
     cursor::{ MoveTo },
     style::{ Color, Print, PrintStyledContent, self, StyledContent, Stylize },
@@ -23,6 +24,12 @@ use crate::files::{ read_lines };
 use crate::logging::{ error, warn, info, debug, trace, init_log };
 
 static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
+
+static KYBD_SENDER: OnceLock<Sender<KeyEvent>> = OnceLock::new();
+static KYBD_RECEIVER: OnceLock<Mutex<Receiver<KeyEvent>>> = OnceLock::new();
+
+static MIDI_SENDER: OnceLock<Sender<bool>> = OnceLock::new();
+static MIDI_RECEIVER: OnceLock<Mutex<Receiver<bool>>> = OnceLock::new();
 
 pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
     let session_dir = PathBuf::from(CONFIGURATION.get()
@@ -102,7 +109,7 @@ impl Refresh for Label {
     }
 }
 
-pub fn run() -> Result<(), Error> {
+pub fn get_song_list() -> Result<(), Error> {
     let arguments = &ARGUMENTS.get().unwrap().args;
     let nargs = arguments.len();
     let mut song_list = Vec::<String>::new();
@@ -118,7 +125,50 @@ pub fn run() -> Result<(), Error> {
     }
     SONG_LIST.set(song_list);
     trace(&format!("Songs: {:#?}", SONG_LIST.get().unwrap()));
+    Ok(())
+}
 
+pub fn start_midi() -> midir::MidiInputConnection<()> {
+    let midi = MidiInput::new("peroxide")
+        .expect("Couldn't initialize MIDI");
+
+    let ports = midi.ports();
+
+    println!("MIDI inputs: {}", ports.len());
+
+    for (i, port) in ports.iter().enumerate() {
+        println!("{}: {}", i, midi.port_name(port).unwrap());
+    }
+
+    let port = ports.get(1)
+        .expect("MIDI port 1 doesn't exist.");
+
+    let connection = midi.connect(
+        port,
+        "peroxide-input",
+        move |_timestamp, message, _| {
+            match message {
+                [0xF8] | [0xFE] => {}
+
+                [0xB0, 64, value] if *value > 63 => {
+                    let _ = MIDI_SENDER.get().unwrap().send(true);
+                }
+
+                _ => {
+                    println!("MIDI: {:?}", message);
+                }
+            }
+        },
+        (),
+    ).expect("Couldn't open MIDI port 1");
+
+    println!("Successfully opened MIDI port 1");
+
+    connection
+}
+
+pub fn run() -> Result<(), Error> {
+    get_song_list()?;
     /*
 
     let status_label_text = "Status".to_owned();
@@ -152,68 +202,42 @@ pub fn run() -> Result<(), Error> {
     */
         
     // enable_raw_mode()?;
-    let (tx, rx) = mpsc::channel();
-    let (midi_tx, midi_rx) = mpsc::channel();
+    
+    let (tx, rx) = channel::<KeyEvent>();
+    KYBD_SENDER.set(tx).unwrap();
+    KYBD_RECEIVER.set(Mutex::new(rx)).unwrap();
 
+    let (midi_tx, midi_rx) = channel::<bool>();
+    MIDI_SENDER.set(midi_tx).unwrap();
+    MIDI_RECEIVER.set(Mutex::new(midi_rx)).unwrap();
+    
     thread::spawn(move || {
         loop {
             if event::poll(Duration::from_millis(50)).unwrap() {
                 if let Ok(Event::Key(key)) = event::read() {
-                    if tx.send(key).is_err() {
-                        break;
-                    }
+                    let _ = KYBD_SENDER.get().unwrap().send(key);
                 }
             }
         }
     });
 
-
-    let midi = MidiInput::new("peroxide")
-        .expect("Couldn't initialize MIDI");
-    let ports = midi.ports();
-    println!("MIDI inputs: {}", ports.len());
-    
-    for (i, port) in ports.iter().enumerate() {
-        println!("{}: {}", i, midi.port_name(port).unwrap());
-    }
-
-    let port = ports.get(1).expect("MIDI port 1 doesn't exist.");
-    
-    let _connection = midi.connect(
-        port,
-        "peroxide-input",
-        move |_timestamp, message, _| {
-            match message {
-                [0xF8] | [0xFE] => {}
-    
-                [0xB0, 64, value] if *value > 63 => {
-                    let _ = midi_tx.send(true);
-                }
-    
-                _ => {
-                    println!("MIDI: {:?}", message);
-                }
-            }
-        },
-        (),
-    ).expect("Couldn't open MIDI port 1");
-    
-    println!("Successfully opened MIDI port 1");
+    let midi_connection = start_midi();
         
     let mut running = true;
     let mut playing = false;
     let mut status = "Stopped";
     let mut pedal_down = false;
     let mut stop_endless_repeat = true;
- 
+    let receiver = KYBD_RECEIVER.get().unwrap().lock().unwrap();
     while running {
-        if let Ok(key) = rx.try_recv() {
+        if let Ok(key) = receiver.try_recv() {
             match key.code {
                 KeyCode::Char(' ') => {
                     playing = !playing;
                     // if (playing) { status_text.set("Playing".to_owned()); }
                     // else { status_text.set("Stopped".to_owned()); }
                     // status_text.refresh()?;
+                    println!("Spacebar event received.")
                 }
                 /// **TODO:** This should escape the current song, rather than quit the program.
                 KeyCode::Esc => {
@@ -224,9 +248,10 @@ pub fn run() -> Result<(), Error> {
             }
         }
 
-        if let Ok(pedal_up) = midi_rx.try_recv() {
+        if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
             if pedal_up {
                 stop_endless_repeat = true;
+                println!("Sustain pedal event received.");
             }
         }
 
