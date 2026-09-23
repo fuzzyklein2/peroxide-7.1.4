@@ -4,8 +4,7 @@ use std::io::{self, BufRead, BufReader, Error};
 use std::env;
 use std::path::{Path, PathBuf};
 
-use crate::constants::{ BASE_DIR, FOLDER_PICT };
-use crate::FILE_SYSTEM;
+use crate::constants::{ FOLDER_PICT };
 use crate::logging::{ error, log_file_name };
 use crate::utilities::program_name;
 
@@ -83,6 +82,3 @@ pub fn read_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, io::Error> {
     reader.lines().collect()
 }
 
-// pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
-//     Ok(["this", "is", "bullshit", ":D"].map(|s| s.to_owned()).to_vec())
-// }

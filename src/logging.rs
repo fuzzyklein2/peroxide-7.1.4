@@ -1,6 +1,6 @@
 use chrono::Local;
 use std::io::{ Error, Write };
-use std::fs::{ File, write };
+use std::fs::{ File };
 
 use env_logger;
 use log::LevelFilter;
@@ -9,7 +9,7 @@ use crate::utilities::rotate_log_files;
 use crate::FILE_SYSTEM;
 use crate::ARGUMENTS;
 
-use crate::constants::{ ERROR_PICT, WARN_PICT, INFO_PICT, DEBUG_PICT, TRACE_PICT, CHECK_PICT, FAILURE_PICT };
+use crate::constants::{ ERROR_PICT, WARN_PICT, INFO_PICT, DEBUG_PICT, TRACE_PICT };
 
 pub fn error(s: &str) -> std::io::Result<()> {
     let message = format!("{ERROR_PICT}{s}");

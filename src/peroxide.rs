@@ -1,8 +1,9 @@
-use std::collections::VecDeque;
+use std::collections::{ HashMap, VecDeque };
+use std::ffi::{ CString, OsString };
 use std::fs;
-use std::io::{ self, Error, Write, stdout };
-use std::path::{ PathBuf };
-use std::sync::{ mpsc, mpsc::{ channel, Sender, Receiver }, Mutex, OnceLock };
+use std::io::{ self, Error, stdout };
+use std::path::{ Path, PathBuf };
+use std::sync::{ mpsc::{ channel, Sender, Receiver }, Mutex, OnceLock };
 use std::thread;
 use std::time::Duration;
 
@@ -14,15 +15,18 @@ use crossterm::{ execute, ExecutableCommand, QueueableCommand,
     event::{ self, Event, KeyCode }
 };
 
-use json;
+use json::{ JsonValue };
 use maudio;
-use midir::{ Ignore, MidiInput };
+use midir::{ MidiInput };
 
 use crate::{ ARGUMENTS, CONFIGURATION, INPUT };
 use crate::files;
 use crate::files::{ read_lines };
 // use crate::ARGUMENTS;
 use crate::logging::{ error, warn, info, debug, trace, init_log };
+
+pub const SONGS_DIR_NAME: &str = "songs";
+pub const CLIPS_DIR_NAME: &str = "clips";
 
 static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
 
@@ -31,6 +35,13 @@ static KYBD_RECEIVER: OnceLock<Mutex<Receiver<KeyEvent>>> = OnceLock::new();
 
 static MIDI_SENDER: OnceLock<Sender<bool>> = OnceLock::new();
 static MIDI_RECEIVER: OnceLock<Mutex<Receiver<bool>>> = OnceLock::new();
+
+pub fn session_folder() -> Result<PathBuf, io::Error> {
+    Ok(PathBuf::from(CONFIGURATION.get()
+                                  .unwrap()
+                                  .value["session folder"]
+                                  .to_string()))
+}
 
 pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
     let session_dir = PathBuf::from(CONFIGURATION.get()
@@ -48,7 +59,9 @@ pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
 }
 
 trait FromFile: Sized {
-    fn from_file(path: impl AsRef<Path>) -> Result<Self>;
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 pub struct Clip {
@@ -73,13 +86,19 @@ unsafe extern "C" {
 }
 
 impl FromFile for Clip {
-    fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut info = AudioInfo {
             channels: 0,
             sample_rate: 0,
             frames: 0,
         };
 
+        let filename = CString::new(path.as_ref().to_string_lossy().as_bytes())
+            .map_err(|_| Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid filename",
+            ))?;
+        
         let result = unsafe {
             get_audio_info(filename.as_ptr(), &mut info)
         };
@@ -88,13 +107,18 @@ impl FromFile for Clip {
             error("Can't load audio clip!");
         }
         
-        self.samples = vec![0.0; info.frames as usize * info.channels as usize];
-    
+        Ok(Self {
+            samples: vec![0.0; info.frames as usize * info.channels as usize],
+            frames: info.frames,
+            channels: info.channels,
+            sample_rate: info.sample_rate,
+        })
+
     }
 }
 
 pub struct Pattern {
-    value: JsonValue>,
+    value: JsonValue,
 }
 
 pub struct Song {
@@ -173,7 +197,7 @@ pub fn get_song_list() -> Result<(), Error> {
     let nargs = arguments.len();
     let mut song_list = Vec::<String>::new();
     if let Some(input) = INPUT.get() {
-        song_list = input.lines().map(str::to_owned).collect();;
+        song_list = input.lines().map(str::to_owned).collect();
     } else if nargs > 0 {
         song_list = read_lines(&arguments[0])?;
     } else {
@@ -235,6 +259,95 @@ pub struct Player {
 
 pub fn run() -> Result<(), Error> {
     get_song_list()?;
+    
+    
+    let (tx, rx) = channel::<KeyEvent>();
+    KYBD_SENDER.set(tx).unwrap();
+    KYBD_RECEIVER.set(Mutex::new(rx)).unwrap();
+
+    let (midi_tx, midi_rx) = channel::<bool>();
+    MIDI_SENDER.set(midi_tx).unwrap();
+    MIDI_RECEIVER.set(Mutex::new(midi_rx)).unwrap();
+    
+    thread::spawn(move || {
+        loop {
+            if event::poll(Duration::from_millis(50)).unwrap() {
+                if let Ok(Event::Key(key)) = event::read() {
+                    let _ = KYBD_SENDER.get().unwrap().send(key);
+                }
+            }
+        }
+    });
+
+    let _midi_connection = start_midi();
+        
+    let mut running = true;
+    let mut playing = false;
+    let mut status = "Stopped";
+    let mut pedal_down = false;
+    let mut stop_endless_repeat = true;
+    let receiver = KYBD_RECEIVER.get().unwrap().lock().unwrap();
+
+    for s in get_song_list() {
+
+    }
+    
+    while running {
+        if let Ok(key) = receiver.try_recv() {
+            match key.code {
+                KeyCode::Char(' ') => {
+                    playing = !playing;
+                    // if (playing) { status_text.set("Playing".to_owned()); }
+                    // else { status_text.set("Stopped".to_owned()); }
+                    // status_text.refresh()?;
+                    println!("Spacebar event received.")
+                }
+                // **TODO:** This should escape the current song, rather than quit the program.
+                KeyCode::Esc => {
+                    running = false;
+                }
+
+                _ => {}
+            }
+        }
+
+        if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
+            if pedal_up {
+                stop_endless_repeat = true;
+                println!("Sustain pedal event received.");
+            }
+        }
+
+        // Do whatever else the main thread needs to do...
+    }
+
+    let SONGS_FOLDER = session_folder()?.join(SONGS_DIR_NAME);
+    
+    let mut clips_map = HashMap::<OsString, Clip>::new();
+
+    for song_title in SONG_LIST.get().unwrap() {
+        let song_folder = SONGS_FOLDER.join(song_title);
+        let clips_folder = song_folder.join(CLIPS_DIR_NAME);
+
+        let mut files: Vec<_> = fs::read_dir(clips_folder)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for f in files {
+            let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+            match Clip::from_file(f.path()) {
+                Ok(clip) => { clips_map.insert(key, clip); }
+                Err(e) => {
+                    error(&format!("Clip could not be loaded from file: {:?}", key)); 
+                    }
+            }
+        }
+    }
+    
+    // disable_raw_mode()?;
+    println!("\n");
+    Ok(())
+}
+
     /*
 
     let status_label_text = "Status".to_owned();
@@ -268,65 +381,3 @@ pub fn run() -> Result<(), Error> {
     */
         
     // enable_raw_mode()?;
-    
-    let (tx, rx) = channel::<KeyEvent>();
-    KYBD_SENDER.set(tx).unwrap();
-    KYBD_RECEIVER.set(Mutex::new(rx)).unwrap();
-
-    let (midi_tx, midi_rx) = channel::<bool>();
-    MIDI_SENDER.set(midi_tx).unwrap();
-    MIDI_RECEIVER.set(Mutex::new(midi_rx)).unwrap();
-    
-    thread::spawn(move || {
-        loop {
-            if event::poll(Duration::from_millis(50)).unwrap() {
-                if let Ok(Event::Key(key)) = event::read() {
-                    let _ = KYBD_SENDER.get().unwrap().send(key);
-                }
-            }
-        }
-    });
-
-    let midi_connection = start_midi();
-        
-    let mut running = true;
-    let mut playing = false;
-    let mut status = "Stopped";
-    let mut pedal_down = false;
-    let mut stop_endless_repeat = true;
-    let receiver = KYBD_RECEIVER.get().unwrap().lock().unwrap();
-    while running {
-        if let Ok(key) = receiver.try_recv() {
-            match key.code {
-                KeyCode::Char(' ') => {
-                    playing = !playing;
-                    // if (playing) { status_text.set("Playing".to_owned()); }
-                    // else { status_text.set("Stopped".to_owned()); }
-                    // status_text.refresh()?;
-                    println!("Spacebar event received.")
-                }
-                /// **TODO:** This should escape the current song, rather than quit the program.
-                KeyCode::Esc => {
-                    running = false;
-                }
-
-                _ => {}
-            }
-        }
-
-        if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
-            if pedal_up {
-                stop_endless_repeat = true;
-                println!("Sustain pedal event received.");
-            }
-        }
-
-        // Do whatever else the main thread needs to do...
-    }
-
-
-    // disable_raw_mode()?;
-    println!("\n");
-    Ok(())
-}
-

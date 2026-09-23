@@ -1,38 +1,21 @@
 #![allow(warnings)]
-use std::io::{ self, Error, Write, stdout };
-use std::path::{Path, PathBuf};
-use std::sync::{ mpsc, OnceLock };
-use std::thread;
-use std::time::Duration;
-
-// use clap::Parser;
-use crossterm::{ execute, ExecutableCommand, QueueableCommand,
-    terminal::{ Clear, ClearType, disable_raw_mode, enable_raw_mode },
-    cursor::{ MoveTo },
-    style::{ Color, Print, PrintStyledContent, self, Stylize },
-    event::{ self, Event, KeyCode }
-};
-use dirs;
-use json::JsonValue;
-use log::LevelFilter;
+use std::io::{ Error };
+use std::sync::{ OnceLock };
 
 mod config;
 mod constants;
-mod getargs;
 mod files;
+mod getargs;
 mod logging;
 mod utilities;
 
-mod peroxide;
-
 use config::{ configure, JSON };
-use constants::{ BASE_DIR, FOLDER_PICT };
-use files::{ cwd, FileSystem, home, pwd, read_lines };
-use getargs::{ Args, get_piped_input };
-use logging::{ error, warn, info, debug, trace, init_log };
-use utilities::program_name;
+use constants::{ BASE_DIR };
+use files::{ cwd, FileSystem, home };
+use getargs::{ Args };
+use logging::{ debug, init_log };
 
-use peroxide::get_most_recent_song_list;
+mod peroxide;
 
 static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
 static CONFIGURATION: OnceLock<JSON> = OnceLock::new();

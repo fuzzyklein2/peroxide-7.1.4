@@ -28,7 +28,7 @@ pub fn rotate_log_files() -> Result<(), Box<dyn std::error::Error>> {
 
     files.sort_by_key(|entry| entry.file_name());
 
-    for file in &files [0..(files.len()-5)] {
+    for file in &files[0..(files.len()-5)] {
         fs::remove_file(file.path())?;
     }
     Ok(())

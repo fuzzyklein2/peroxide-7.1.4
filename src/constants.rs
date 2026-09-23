@@ -29,6 +29,6 @@ pub const LOG_DIR_NAME: &str = ".log";
 pub const DATA_DIR_NAME: &str = "data";
 
 pub static DATA_FILE_NAME: LazyLock<String>
-    = LazyLock::new(|| (program_name().expect("REASON") + ".json"));
+    = LazyLock::new(|| program_name().expect("REASON") + ".json");
 
 // pub const CONFIG_FILE: &str = concat!(

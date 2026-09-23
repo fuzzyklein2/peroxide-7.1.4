@@ -12,7 +12,6 @@ use crate::ARGUMENTS;
 
 use crate::files::FileSystem;
 use crate::getargs::{ Args, get_piped_input };
-use crate::utilities::program_name;
 
 #[derive(Debug)]
 pub struct JSON {
@@ -30,7 +29,6 @@ impl JSON {
 }
 
 pub fn configure() -> Result<(), Error> {
-    let prog_name = program_name()?;
     let args = Args::parse();
     FILE_SYSTEM.set(FileSystem::new()).unwrap();
     CONFIGURATION.set(JSON::new(&FILE_SYSTEM.get().unwrap().config_file)).unwrap();
