@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{ self, Error, Write, stdout };
 use std::path::{ PathBuf };
@@ -44,6 +45,64 @@ pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
     dir_content.sort_by_key(|entry| entry.file_name());
     let song_list_file = &dir_content[i];
     files::read_lines(song_list_file.path())
+}
+
+trait FromFile: Sized {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self>;
+}
+
+pub struct Clip {
+    samples: Vec<f32>,
+    frames: usize,
+    channels: u32,
+    sample_rate: u32,
+}
+
+#[repr(C)]
+pub struct AudioInfo {
+    pub channels: u32,
+    pub sample_rate: u32,
+    pub frames: usize,
+}
+
+unsafe extern "C" {
+    fn get_audio_info(
+        filename: *const std::ffi::c_char,
+        info: *mut AudioInfo,
+    ) -> i32;
+}
+
+impl FromFile for Clip {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        let mut info = AudioInfo {
+            channels: 0,
+            sample_rate: 0,
+            frames: 0,
+        };
+
+        let result = unsafe {
+            get_audio_info(filename.as_ptr(), &mut info)
+        };
+        
+        if result != 0 {
+            error("Can't load audio clip!");
+        }
+        
+        self.samples = vec![0.0; info.frames as usize * info.channels as usize];
+    
+    }
+}
+
+pub struct Pattern {
+    value: JsonValue>,
+}
+
+pub struct Song {
+    pattern: Pattern,
+}
+
+pub struct SongList {
+    songs: Vec<Song>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +226,13 @@ pub fn start_midi() -> midir::MidiInputConnection<()> {
     connection
 }
 
+pub struct Player {
+    song_list: SongList,
+    patterns: Vec<Pattern>,
+    clips: VecDeque<String>,
+    Clips_map: HashMap<String, Clip>
+}
+
 pub fn run() -> Result<(), Error> {
     get_song_list()?;
     /*
@@ -263,3 +329,4 @@ pub fn run() -> Result<(), Error> {
     println!("\n");
     Ok(())
 }
+
