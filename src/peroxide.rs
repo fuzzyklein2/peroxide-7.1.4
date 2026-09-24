@@ -27,6 +27,7 @@ use crate::logging::{ error, warn, info, debug, trace, init_log };
 
 pub const SONGS_DIR_NAME: &str = "songs";
 pub const CLIPS_DIR_NAME: &str = "clips";
+pub const SONG_FILE_NAME: &str = "song.json";
 
 static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
 
@@ -117,8 +118,25 @@ impl FromFile for Clip {
     }
 }
 
+#[derive(Debug)]
 pub struct Pattern {
     value: JsonValue,
+}
+
+impl FromFile for Pattern {
+    fn from_file(p: impl AsRef<Path>) -> Result<Self, Error> {
+        // let filename = CString::new(path.as_ref().to_string_lossy().as_bytes())
+        //     .map_err(|_| Error::new(
+        //         std::io::ErrorKind::InvalidInput,
+        //         "Invalid filename",
+        //     ))?;
+        
+        let contents = fs::read_to_string(p).unwrap();
+
+        Ok(Self {
+            value: json::parse(&contents).unwrap(),
+        })
+    }
 }
 
 pub struct Song {
@@ -251,15 +269,49 @@ pub fn start_midi() -> midir::MidiInputConnection<()> {
 }
 
 pub struct Player {
-    song_list: SongList,
-    patterns: Vec<Pattern>,
     clips: VecDeque<String>,
-    Clips_map: HashMap<String, Clip>
+    cache: HashMap<String, Clip>
 }
 
-pub fn run() -> Result<(), Error> {
-    get_song_list()?;
+impl Player {
+    pub fn parse(&mut self, pattern: JsonValue) -> Result<(), Error> {
+        match pattern {
+            JsonValue::Array(a) => self.parse_items(&a),
+            _ => {
+                error("Pattern must be an array!");
+                Ok(())
+            }
+        }
+    }
     
+    /// Parse a pattern recursively
+    pub fn parse_items(&mut self, pattern: &[JsonValue]) -> Result<(), Error> {
+        // ...
+        debug(&format!("Parsing pattern: {:?}", pattern));
+        let mut repeat_count = 1;
+
+        for item in pattern {
+            match item {
+                JsonValue::Number(n) => { n.as_fixed_point_i64(0).unwrap() as usize;
+                }
+                JsonValue::Array(a) => { self.parse_items(&a)?; }
+                JsonValue::Short(s) => { 
+                    debug(&format!("Clip: {:?}", s));
+                    self.clips.push_back(s.to_string());
+                } // Short
+                _ => {
+                    error("Parsing error!");
+                } // _ (error)
+            } // match
+        } // for        
+        Ok(())
+    }
+}
+
+
+pub fn run() -> Result<(), Error> {
+
+    get_song_list()?;
     
     let (tx, rx) = channel::<KeyEvent>();
     KYBD_SENDER.set(tx).unwrap();
@@ -288,39 +340,6 @@ pub fn run() -> Result<(), Error> {
     let mut stop_endless_repeat = true;
     let receiver = KYBD_RECEIVER.get().unwrap().lock().unwrap();
 
-    for s in get_song_list() {
-
-    }
-    
-    while running {
-        if let Ok(key) = receiver.try_recv() {
-            match key.code {
-                KeyCode::Char(' ') => {
-                    playing = !playing;
-                    // if (playing) { status_text.set("Playing".to_owned()); }
-                    // else { status_text.set("Stopped".to_owned()); }
-                    // status_text.refresh()?;
-                    println!("Spacebar event received.")
-                }
-                // **TODO:** This should escape the current song, rather than quit the program.
-                KeyCode::Esc => {
-                    running = false;
-                }
-
-                _ => {}
-            }
-        }
-
-        if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
-            if pedal_up {
-                stop_endless_repeat = true;
-                println!("Sustain pedal event received.");
-            }
-        }
-
-        // Do whatever else the main thread needs to do...
-    }
-
     debug(&format!("Searching for the `songs` folder..."));
 
     let SONGS_FOLDER = session_folder()?.join(SONGS_DIR_NAME);
@@ -334,19 +353,67 @@ pub fn run() -> Result<(), Error> {
         let mut files: Vec<_> = fs::read_dir(clips_folder)?
             .collect::<Result<Vec<_>, _>>()?;
 
+        // Load the clip from each file
         for f in files {
             let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+            
             match Clip::from_file(f.path()) {
                 Ok(clip) => {
                     info(&format!("Clip loaded: {:?}", key));            
                     clips_map.insert(key, clip); 
-                }
+                } // Ok
                 Err(e) => {
                     error(&format!("Clip could not be loaded from file: {:?}", key)); 
-                }
-            }
-        }
+                } // Err
+            } // match
+        } // for
+
+        // Parse the song file
+        let song_file = song_folder.join(SONG_FILE_NAME);
+        debug(&format!("Opening song file: {:?}", song_file));
+        let contents = fs::read_to_string(song_file).unwrap();
+        debug(&format!("{:?}", contents));
+        let js = json::parse(&contents).unwrap();
+        
+        let mut player = Player {
+            clips: VecDeque::new(),
+            cache: HashMap::new(),
+        };
+        
+        player.parse(js)?;
     }
+
+    
+    
+    // while running {
+    //     if let Ok(key) = receiver.try_recv() {
+    //         match key.code {
+    //             KeyCode::Char(' ') => {
+    //                 playing = !playing;
+    //                 // if (playing) { status_text.set("Playing".to_owned()); }
+    //                 // else { status_text.set("Stopped".to_owned()); }
+    //                 // status_text.refresh()?;
+    //                 println!("Spacebar event received.")
+    //             }
+    //             // **TODO:** This should escape the current song, rather than quit the program.
+    //             KeyCode::Esc => {
+    //                 running = false;
+    //             }
+
+    //             _ => {}
+    //         }
+    //     }
+
+    //     if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
+    //         if pedal_up {
+    //             stop_endless_repeat = true;
+    //             println!("Sustain pedal event received.");
+    //         }
+    //     }
+
+        // Do whatever else the main thread needs to do...
+    // }
+
     
     // disable_raw_mode()?;
     println!("\n");
