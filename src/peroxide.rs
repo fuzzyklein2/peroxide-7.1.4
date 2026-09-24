@@ -321,6 +321,8 @@ pub fn run() -> Result<(), Error> {
         // Do whatever else the main thread needs to do...
     }
 
+    debug(&format!("Searching for the `songs` folder..."));
+
     let SONGS_FOLDER = session_folder()?.join(SONGS_DIR_NAME);
     
     let mut clips_map = HashMap::<OsString, Clip>::new();
@@ -335,10 +337,13 @@ pub fn run() -> Result<(), Error> {
         for f in files {
             let key: OsString = f.path().file_stem().expect("REASON").to_owned();
             match Clip::from_file(f.path()) {
-                Ok(clip) => { clips_map.insert(key, clip); }
+                Ok(clip) => {
+                    info(&format!("Clip loaded: {:?}", key));            
+                    clips_map.insert(key, clip); 
+                }
                 Err(e) => {
                     error(&format!("Clip could not be loaded from file: {:?}", key)); 
-                    }
+                }
             }
         }
     }
