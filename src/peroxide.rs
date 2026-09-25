@@ -52,6 +52,9 @@ pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
     let lists_dir = session_dir.join("lists");
     let mut dir_content: Vec<_> = fs::read_dir(lists_dir)?
         .collect::<Result<Vec<_>, _>>()?;
+    if lists_dir.empty() {
+        error("Song lists directory is empty!");
+    }
     let n = dir_content.len();
     let i = n - 1;
     dir_content.sort_by_key(|entry| entry.file_name());
@@ -106,15 +109,16 @@ impl FromFile for Clip {
         
         if result != 0 {
             error("Can't load audio clip!");
+            Err()
         }
-        
-        Ok(Self {
-            samples: vec![0.0; info.frames as usize * info.channels as usize],
-            frames: info.frames,
-            channels: info.channels,
-            sample_rate: info.sample_rate,
-        })
-
+        else {
+            Ok(Self {
+                samples: vec![0.0; info.frames as usize * info.channels as usize],
+                frames: info.frames,
+                channels: info.channels,
+                sample_rate: info.sample_rate,
+            })
+        }
     }
 }
 
@@ -210,24 +214,24 @@ impl Refresh for Label {
     }
 }
 
-pub fn get_song_list() -> Result<(), Error> {
-    let arguments = &ARGUMENTS.get().unwrap().args;
-    let nargs = arguments.len();
-    let mut song_list = Vec::<String>::new();
-    if let Some(input) = INPUT.get() {
-        song_list = input.lines().map(str::to_owned).collect();
-    } else if nargs > 0 {
-        song_list = read_lines(&arguments[0])?;
-    } else {
-        song_list = get_most_recent_song_list()?;
-    }
-    while song_list.last().is_some_and(|s| s.is_empty()) {
-        song_list.pop();
-    }
-    SONG_LIST.set(song_list);
-    trace(&format!("Songs: {:#?}", SONG_LIST.get().unwrap()));
-    Ok(())
-}
+// pub fn get_song_list() -> Result<(), Error> {
+//     let arguments = &ARGUMENTS.get().unwrap().args;
+//     let nargs = arguments.len();
+//     let mut song_list = Vec::<String>::new();
+//     if let Some(input) = INPUT.get() {
+//         song_list = input.lines().map(str::to_owned).collect();
+//     } else if nargs > 0 {
+//         song_list = read_lines(&arguments[0])?;
+//     } else {
+//         song_list = get_most_recent_song_list()?;
+//     }
+//     while song_list.last().is_some_and(|s| s.is_empty()) {
+//         song_list.pop();
+//     }
+//     SONG_LIST.set(song_list);
+//     trace(&format!("Songs: {:#?}", SONG_LIST.get().unwrap()));
+//     Ok(())
+// }
 
 
 #[derive(Debug)]
@@ -241,8 +245,11 @@ pub struct Player {
     cache: HashMap<String, Clip>,
     playing: bool,
     pedal: bool,
+    sender: Sender<PlayerEvent>,
     receiver: Receiver<PlayerEvent>,
     midi_connection: MidiInputConnection,
+    song_list: Vec<String>,
+    songs_folder: PathBuf,
 }
 
 impl Player {
@@ -253,16 +260,20 @@ impl Player {
             cache: HashMap::<OsString, Clip>::new(),
             playing: false,
             pedal: false,
-            sender: sender.clone(),
-            receiver: receiver.clone(),
+            sender: Sender<PlayerEvent>::new(),
+            receiver: Receiver<PlayerEvent>::new(),
             midi_connection: start_midi(),
         }
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self) -> Result<(), Error> {
         let(sender, receiver) = channel::<PlayerEvent>();
         self.sender = sender.clone();
         self.receiver = receiver.clone();
+        self.get_song_list()?;
+        debug(&format!("Searching for the `songs` folder..."));
+        self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);        
+        Ok(())
     }
 
     pub fn get_keyboard_events(&mut self) {
@@ -270,7 +281,8 @@ impl Player {
             loop {
                 if event::poll(Duration::from_millis(50)).unwrap() {
                     if let Ok(Event::Key(key)) = event::read() {
-                        let _ = keyboard_sender.send(key);
+                        // This will work for now, but we we'll need to distinguish different keys for different possible commands.
+                        let _ = self.sender.send(PlayerEvent::Pedal);
                     }
                 }
             }
@@ -300,7 +312,7 @@ impl Player {
                     [0xF8] | [0xFE] => {}
     
                     [0xB0, 64, value] if *value > 63 => {
-                        let _ = self.sender.send(true);
+                        let _ = self.sender.send(PlayerEvent::Pedal);
                     }
     
                     _ => {
@@ -314,6 +326,25 @@ impl Player {
         println!("Successfully opened MIDI port 1");
     
         connection
+    }
+
+    pub fn get_song_list(&mut self) -> Result<(), Error> {
+        let arguments = &ARGUMENTS.get().unwrap().args;
+        let nargs = arguments.len();
+        let mut song_list = Vec::<String>::new();
+        if let Some(input) = INPUT.get() {
+            self.song_list = input.lines().map(str::to_owned).collect();
+        } else if nargs > 0 {
+            self.song_list = read_lines(&arguments[0])?;
+        } else {
+            self.song_list = get_most_recent_song_list()?;
+        }
+        while self.song_list.last().is_some_and(|s| s.is_empty()) {
+            self.song_list.pop();
+        }
+        trace(&format!("Songs: {:#?}", self.song_list));
+        Ok(())
+
     }
 
     pub fn parse(&mut self, pattern: JsonValue) -> Result<(), Error> {
@@ -366,14 +397,6 @@ impl Player {
 
 
 pub fn run() -> Result<(), Error> {
-
-    get_song_list()?;
-    
-    debug(&format!("Searching for the `songs` folder..."));
-
-    let SONGS_FOLDER = session_folder()?.join(SONGS_DIR_NAME);
-    
-    let mut clips_map = HashMap::<OsString, Clip>::new();
 
     for song_title in SONG_LIST.get().unwrap() {
         let song_folder = SONGS_FOLDER.join(song_title);
