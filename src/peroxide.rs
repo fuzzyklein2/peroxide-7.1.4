@@ -254,22 +254,22 @@ pub struct Player {
 
 impl Player {
     pub fn new () -> Self {
+        let(sender, receiver) = channel::<PlayerEvent>();
 
         Self {
             clips: VecDeque::new(),
             cache: HashMap::<OsString, Clip>::new(),
             playing: false,
             pedal: false,
-            sender: Sender<PlayerEvent>::new(),
-            receiver: Receiver<PlayerEvent>::new(),
+            sender,
+            receiver,
             midi_connection: start_midi(),
         }
     }
 
     pub fn init(&mut self) -> Result<(), Error> {
-        let(sender, receiver) = channel::<PlayerEvent>();
-        self.sender = sender.clone();
-        self.receiver = receiver.clone();
+        self.sender = sender;
+        self.receiver = receiver;
         self.get_song_list()?;
         debug(&format!("Searching for the `songs` folder..."));
         self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);        
@@ -277,19 +277,33 @@ impl Player {
     }
 
     pub fn get_keyboard_events(&mut self) {
+        let sender = self.sender.clone();
         thread::spawn(move || {
             loop {
                 if event::poll(Duration::from_millis(50)).unwrap() {
-                    if let Ok(Event::Key(key)) = event::read() {
-                        // This will work for now, but we we'll need to distinguish different keys for different possible commands.
-                        let _ = self.sender.send(PlayerEvent::Pedal);
-                    }
-                }
-            }
-        });
-    }
+                    match key.code {
+                        KeyCode::Char(' ') => {
+                            let _ = sender.send(PlayerEvent::Space);
+                        }
+                    
+                        KeyCode::Esc => {
+                            let _ = sender.send(PlayerEvent::Escape);
+                        }
+                    
+                        _ => {}
+                    } // match
+                    
+                    // if let Ok(Event::Key(key)) = event::read() {
+                    //     // This will work for now, but we we'll need to distinguish different keys for different possible commands.
+                    //     // Other Event types can just be added to the PlayerEvent and matched to chars.
+                    //     let _ = sender.send(PlayerEvent::Pedal);
+                } // if event::poll
+            } // loop
+        }); // thread::spawn
+    } // get_keyboard events
     
     pub fn start_midi(&mut self) -> MidiInputConnection<()> {
+        let sender = self.sender.clone();
         let midi = MidiInput::new("peroxide")
             .expect("Couldn't initialize MIDI");
     
@@ -312,7 +326,7 @@ impl Player {
                     [0xF8] | [0xFE] => {}
     
                     [0xB0, 64, value] if *value > 63 => {
-                        let _ = self.sender.send(PlayerEvent::Pedal);
+                        let _ = sender.send(PlayerEvent::Pedal);
                     }
     
                     _ => {
