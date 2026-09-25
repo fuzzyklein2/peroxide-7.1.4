@@ -17,7 +17,7 @@ use crossterm::{ execute, ExecutableCommand, QueueableCommand,
 
 use json::{ JsonValue };
 use maudio;
-use midir::{ MidiInput };
+use midir::{ MidiInput, MidiInputConnection };
 
 use crate::{ ARGUMENTS, CONFIGURATION, INPUT };
 use crate::files;
@@ -31,11 +31,11 @@ pub const SONG_FILE_NAME: &str = "song.json";
 
 static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
 
-static KYBD_SENDER: OnceLock<Sender<KeyEvent>> = OnceLock::new();
-static KYBD_RECEIVER: OnceLock<Mutex<Receiver<KeyEvent>>> = OnceLock::new();
+// static KYBD_SENDER: OnceLock<Sender<KeyEvent>> = OnceLock::new();
+// static KYBD_RECEIVER: OnceLock<Mutex<Receiver<KeyEvent>>> = OnceLock::new();
 
-static MIDI_SENDER: OnceLock<Sender<bool>> = OnceLock::new();
-static MIDI_RECEIVER: OnceLock<Mutex<Receiver<bool>>> = OnceLock::new();
+// static MIDI_SENDER: OnceLock<Sender<bool>> = OnceLock::new();
+// static MIDI_RECEIVER: OnceLock<Mutex<Receiver<bool>>> = OnceLock::new();
 
 pub fn session_folder() -> Result<PathBuf, io::Error> {
     Ok(PathBuf::from(CONFIGURATION.get()
@@ -229,52 +229,98 @@ pub fn get_song_list() -> Result<(), Error> {
     Ok(())
 }
 
-pub fn start_midi() -> midir::MidiInputConnection<()> {
-    let midi = MidiInput::new("peroxide")
-        .expect("Couldn't initialize MIDI");
 
-    let ports = midi.ports();
-
-    println!("MIDI inputs: {}", ports.len());
-
-    for (i, port) in ports.iter().enumerate() {
-        println!("{}: {}", i, midi.port_name(port).unwrap());
-    }
-
-    let port = ports.get(1)
-        .expect("MIDI port 1 doesn't exist.");
-
-    let connection = midi.connect(
-        port,
-        "peroxide-input",
-        move |_timestamp, message, _| {
-            match message {
-                [0xF8] | [0xFE] => {}
-
-                [0xB0, 64, value] if *value > 63 => {
-                    let _ = MIDI_SENDER.get().unwrap().send(true);
-                }
-
-                _ => {
-                    println!("MIDI: {:?}", message);
-                }
-            }
-        },
-        (),
-    ).expect("Couldn't open MIDI port 1");
-
-    println!("Successfully opened MIDI port 1");
-
-    connection
+#[derive(Debug)]
+enum PlayerEvent {
+    Pedal,
+    Space,
 }
 
 pub struct Player {
     clips: VecDeque<String>,
-    cache: HashMap<String, Clip>
+    cache: HashMap<String, Clip>,
+    playing: bool,
+    pedal: bool,
+    receiver: Receiver<PlayerEvent>,
+    midi_connection: MidiInputConnection,
 }
 
 impl Player {
+    pub fn new () -> Self {
+
+        Self {
+            clips: VecDeque::new(),
+            cache: HashMap::<OsString, Clip>::new(),
+            playing: false,
+            pedal: false,
+            sender: sender.clone(),
+            receiver: receiver.clone(),
+            midi_connection: start_midi(),
+        }
+    }
+
+    pub fn init(&mut self) {
+        let(sender, receiver) = channel::<PlayerEvent>();
+        self.sender = sender.clone();
+        self.receiver = receiver.clone();
+    }
+
+    pub fn get_keyboard_events(&mut self) {
+        thread::spawn(move || {
+            loop {
+                if event::poll(Duration::from_millis(50)).unwrap() {
+                    if let Ok(Event::Key(key)) = event::read() {
+                        let _ = keyboard_sender.send(key);
+                    }
+                }
+            }
+        });
+    }
+    
+    pub fn start_midi(&mut self) -> MidiInputConnection<()> {
+        let midi = MidiInput::new("peroxide")
+            .expect("Couldn't initialize MIDI");
+    
+        let ports = midi.ports();
+    
+        println!("MIDI inputs: {}", ports.len());
+    
+        for (i, port) in ports.iter().enumerate() {
+            println!("{}: {}", i, midi.port_name(port).unwrap());
+        }
+    
+        let port = ports.get(1)
+            .expect("MIDI port 1 doesn't exist.");
+    
+        let connection = midi.connect(
+            port,
+            "peroxide-input",
+            move |_timestamp, message, _| {
+                match message {
+                    [0xF8] | [0xFE] => {}
+    
+                    [0xB0, 64, value] if *value > 63 => {
+                        let _ = self.sender.send(true);
+                    }
+    
+                    _ => {
+                        println!("MIDI: {:?}", message);
+                    }
+                }
+            },
+            (),
+        ).expect("Couldn't open MIDI port 1");
+    
+        println!("Successfully opened MIDI port 1");
+    
+        connection
+    }
+
     pub fn parse(&mut self, pattern: JsonValue) -> Result<(), Error> {
+        // Wait for the sustain pedal to begin parsing (playing) the pattern
+
+        
+        
         match pattern {
             JsonValue::Array(a) => self.parse_items(&a),
             _ => {
@@ -289,57 +335,40 @@ impl Player {
         // ...
         debug(&format!("Parsing pattern: {:?}", pattern));
         let mut repeat_count = 1;
+        let mut iteration = 0;
 
-        for item in pattern {
-            match item {
-                JsonValue::Number(n) => { n.as_fixed_point_i64(0).unwrap() as usize;
-                }
-                JsonValue::Array(a) => { self.parse_items(&a)?; }
-                JsonValue::Short(s) => { 
-                    debug(&format!("Clip: {:?}", s));
-                    self.clips.push_back(s.to_string());
-                } // Short
-                _ => {
-                    error("Parsing error!");
-                } // _ (error)
-            } // match
-        } // for        
+        while iteration < repeat_count {
+            for item in pattern {
+                match item {
+                    JsonValue::Number(n) => {
+                        repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
+                        // if repeat_count == 0 { repeat_count = usize::MAX; }
+                    } // Number
+                    JsonValue::Array(a) => { self.parse_items(&a)?; }
+                    JsonValue::Short(s) => { 
+                        debug(&format!("Clip: {:?}", s));
+                        self.clips.push_back(s.to_string());
+                    } // Short
+                    _ => {
+                        error("Parsing error!");
+                    } // _ (error)
+                } // match
+                iteration += 1;
+            } // for 
+            if repeat_count == 0 && self.pedal {
+                self.pedal = false;
+                break;
+            } // if
+        } // while
         Ok(())
-    }
-}
+    } // parse_items
+} // impl Player
 
 
 pub fn run() -> Result<(), Error> {
 
     get_song_list()?;
     
-    let (tx, rx) = channel::<KeyEvent>();
-    KYBD_SENDER.set(tx).unwrap();
-    KYBD_RECEIVER.set(Mutex::new(rx)).unwrap();
-
-    let (midi_tx, midi_rx) = channel::<bool>();
-    MIDI_SENDER.set(midi_tx).unwrap();
-    MIDI_RECEIVER.set(Mutex::new(midi_rx)).unwrap();
-    
-    thread::spawn(move || {
-        loop {
-            if event::poll(Duration::from_millis(50)).unwrap() {
-                if let Ok(Event::Key(key)) = event::read() {
-                    let _ = KYBD_SENDER.get().unwrap().send(key);
-                }
-            }
-        }
-    });
-
-    let _midi_connection = start_midi();
-        
-    let mut running = true;
-    let mut playing = false;
-    let mut status = "Stopped";
-    let mut pedal_down = false;
-    let mut stop_endless_repeat = true;
-    let receiver = KYBD_RECEIVER.get().unwrap().lock().unwrap();
-
     debug(&format!("Searching for the `songs` folder..."));
 
     let SONGS_FOLDER = session_folder()?.join(SONGS_DIR_NAME);
@@ -378,10 +407,15 @@ pub fn run() -> Result<(), Error> {
         let mut player = Player {
             clips: VecDeque::new(),
             cache: HashMap::new(),
+            playing: false,
+            pedal: false,
         };
+
+        // Wait for the pedal event
+        
         
         player.parse(js)?;
-    }
+    } // for
 
     
     

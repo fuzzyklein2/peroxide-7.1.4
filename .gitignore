@@ -27,8 +27,9 @@ notes/
 rust/
 
 # *.txt
+Untitled*
 output.txt
-untitled.txt
+untitled*
 tree.txt
 *.gch
 test/
