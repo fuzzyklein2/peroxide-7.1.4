@@ -29,14 +29,6 @@ pub const SONGS_DIR_NAME: &str = "songs";
 pub const CLIPS_DIR_NAME: &str = "clips";
 pub const SONG_FILE_NAME: &str = "song.json";
 
-static SONG_LIST: OnceLock<Vec<String>> = OnceLock::new();
-
-// static KYBD_SENDER: OnceLock<Sender<KeyEvent>> = OnceLock::new();
-// static KYBD_RECEIVER: OnceLock<Mutex<Receiver<KeyEvent>>> = OnceLock::new();
-
-// static MIDI_SENDER: OnceLock<Sender<bool>> = OnceLock::new();
-// static MIDI_RECEIVER: OnceLock<Mutex<Receiver<bool>>> = OnceLock::new();
-
 pub fn session_folder() -> Result<PathBuf, io::Error> {
     Ok(PathBuf::from(CONFIGURATION.get()
                                   .unwrap()
@@ -45,11 +37,7 @@ pub fn session_folder() -> Result<PathBuf, io::Error> {
 }
 
 pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
-    let session_dir = PathBuf::from(CONFIGURATION.get()
-                                                 .unwrap()
-                                                 .value["session folder"]
-                                                 .to_string());
-    let lists_dir = session_dir.join("lists");
+    let lists_dir = session_folder()?.join("lists");
     let mut dir_content: Vec<_> = fs::read_dir(lists_dir)?
         .collect::<Result<Vec<_>, _>>()?;
     if lists_dir.empty() {
@@ -129,12 +117,6 @@ pub struct Pattern {
 
 impl FromFile for Pattern {
     fn from_file(p: impl AsRef<Path>) -> Result<Self, Error> {
-        // let filename = CString::new(path.as_ref().to_string_lossy().as_bytes())
-        //     .map_err(|_| Error::new(
-        //         std::io::ErrorKind::InvalidInput,
-        //         "Invalid filename",
-        //     ))?;
-        
         let contents = fs::read_to_string(p).unwrap();
 
         Ok(Self {
@@ -143,13 +125,13 @@ impl FromFile for Pattern {
     }
 }
 
-pub struct Song {
-    pattern: Pattern,
-}
+// pub struct Song {
+//     pattern: Pattern,
+// }
 
-pub struct SongList {
-    songs: Vec<Song>,
-}
+// pub struct SongList {
+//     songs: Vec<Song>,
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
@@ -214,32 +196,13 @@ impl Refresh for Label {
     }
 }
 
-// pub fn get_song_list() -> Result<(), Error> {
-//     let arguments = &ARGUMENTS.get().unwrap().args;
-//     let nargs = arguments.len();
-//     let mut song_list = Vec::<String>::new();
-//     if let Some(input) = INPUT.get() {
-//         song_list = input.lines().map(str::to_owned).collect();
-//     } else if nargs > 0 {
-//         song_list = read_lines(&arguments[0])?;
-//     } else {
-//         song_list = get_most_recent_song_list()?;
-//     }
-//     while song_list.last().is_some_and(|s| s.is_empty()) {
-//         song_list.pop();
-//     }
-//     SONG_LIST.set(song_list);
-//     trace(&format!("Songs: {:#?}", SONG_LIST.get().unwrap()));
-//     Ok(())
-// }
-
-
 #[derive(Debug)]
 enum PlayerEvent {
     Pedal,
     Space,
 }
 
+#[derive(Debug)]
 pub struct Player {
     clips: VecDeque<String>,
     cache: HashMap<String, Clip>,
@@ -272,7 +235,9 @@ impl Player {
         self.receiver = receiver;
         self.get_song_list()?;
         debug(&format!("Searching for the `songs` folder..."));
-        self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);        
+        self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);
+        self.get_keyboard_events();
+        self.start_midi();
         Ok(())
     }
 
@@ -407,87 +372,45 @@ impl Player {
         } // while
         Ok(())
     } // parse_items
+
+    pub fun play(&self) -> Result<(), Error> {
+        self.init();
+        for song_title in self.song_list {
+            let song_folder = self.songs_folder.join(song_title);
+            let clips_folder = song_folder.join(CLIPS_DIR_NAME);
+
+            let mut files: Vec<_> = fs::read_dir(clips_folder)?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            for f in files {
+                let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+
+                match Clip::from_file(f.path()) {
+                    Ok(clip) => {
+                        clips_map.insert(key, clip); 
+                        info(&format!("Clip loaded: {:?}", key));            
+                    } // Ok
+                    Err(e) => {
+                        error(&format!("Clip could not be loaded from file: {:?}", key)); 
+                    } // Err
+                } // match
+
+                let song_file = song_folder.join(SONG_FILE_NAME);
+                let contents = fs::read_to_string(song_file).unwrap();
+                let js = json::parse(&contents).unwrap();
+                self.parse(js);
+            } // for f
+        } // for song_title
+        
+        Ok(())
+    } // play
 } // impl Player
 
 
 pub fn run() -> Result<(), Error> {
-
-    for song_title in SONG_LIST.get().unwrap() {
-        let song_folder = SONGS_FOLDER.join(song_title);
-        let clips_folder = song_folder.join(CLIPS_DIR_NAME);
-
-        let mut files: Vec<_> = fs::read_dir(clips_folder)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Load the clip from each file
-        for f in files {
-            let key: OsString = f.path().file_stem().expect("REASON").to_owned();
-            
-            match Clip::from_file(f.path()) {
-                Ok(clip) => {
-                    info(&format!("Clip loaded: {:?}", key));            
-                    clips_map.insert(key, clip); 
-                } // Ok
-                Err(e) => {
-                    error(&format!("Clip could not be loaded from file: {:?}", key)); 
-                } // Err
-            } // match
-        } // for
-
-        // Parse the song file
-        let song_file = song_folder.join(SONG_FILE_NAME);
-        debug(&format!("Opening song file: {:?}", song_file));
-        let contents = fs::read_to_string(song_file).unwrap();
-        debug(&format!("{:?}", contents));
-        let js = json::parse(&contents).unwrap();
-        
-        let mut player = Player {
-            clips: VecDeque::new(),
-            cache: HashMap::new(),
-            playing: false,
-            pedal: false,
-        };
-
-        // Wait for the pedal event
-        
-        
-        player.parse(js)?;
-    } // for
-
+    let player = Player::new();
+    player.play();
     
-    
-    // while running {
-    //     if let Ok(key) = receiver.try_recv() {
-    //         match key.code {
-    //             KeyCode::Char(' ') => {
-    //                 playing = !playing;
-    //                 // if (playing) { status_text.set("Playing".to_owned()); }
-    //                 // else { status_text.set("Stopped".to_owned()); }
-    //                 // status_text.refresh()?;
-    //                 println!("Spacebar event received.")
-    //             }
-    //             // **TODO:** This should escape the current song, rather than quit the program.
-    //             KeyCode::Esc => {
-    //                 running = false;
-    //             }
-
-    //             _ => {}
-    //         }
-    //     }
-
-    //     if let Ok(pedal_up) = MIDI_RECEIVER.get().unwrap().lock().unwrap().try_recv() {
-    //         if pedal_up {
-    //             stop_endless_repeat = true;
-    //             println!("Sustain pedal event received.");
-    //         }
-    //     }
-
-        // Do whatever else the main thread needs to do...
-    // }
-
-    
-    // disable_raw_mode()?;
-    println!("\n");
     Ok(())
 }
 
