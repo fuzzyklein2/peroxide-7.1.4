@@ -188,8 +188,11 @@ impl FromVector<JsonValue> for Pattern {
         for value in v {
             match value {
                 JsonValue::Number(n) => repeat_count = n.as_fixed_point_i64(0).unwrap() as u16,
-                JsonValue::Short(s) => a.push(s.as_str())?,
-                JsonValue::Array(js) => a.push(js)?,
+                JsonValue::Short(s) => a.push(s.as_str())
+                    .map_err(|e| io::Error::other(e.to_string()))?,
+                JsonValue::Array(js) => a.push(js)
+                    .map_err(|e| io::Error::other(e.to_string()))?,
+                _ => {}
             } // match
         } // for value
         Ok (
@@ -410,26 +413,6 @@ impl Player {
         Ok(())
 
     }
-
-    // pub fn parse(&mut self, pattern: Pattern) -> Result<(), Error> {
-    //     // Wait for the sustain pedal to begin parsing (playing) the pattern
-    //     if !playing {
-    //         while !self.pedal {
-    //             self.poll_events(); 
-    //         } // while
-    //     } // if !playing
-    //     debug("Pedal event received!\nStarting playback...");
-    //     self.pedal = false;
-    //     self.playing = true;
-        
-    //     match pattern.value {
-    //         JsonValue::Array(a) => self.parse_items(&a, pattern.repeat_count.unwrap()),
-    //         _ => {
-    //             error("Pattern must be an array!");
-    //             Ok(())
-    //         } // error
-    //     } // match
-    // } // parse
     
     pub fn parse(&mut self, pattern: Pattern) -> Result<(), Error> {
         // Wait for the sustain pedal to begin parsing (playing) the pattern
@@ -459,16 +442,23 @@ impl Player {
         // ...
         debug(&format!("Parsing pattern: {:?}", pattern));
         let mut iteration = 0;
-        if *repeat_count == 0 { repeat_count = &10000; }
-
-        while iteration < *repeat_count {
+        let repeats = match *repeat_count {
+            0 => 10000,
+            n => n,
+        };
+        while iteration < repeats {
             for i in 0..pattern.value.len() {
-                match pattern.value[i] {
+                match &pattern.value[i] {
                     JsonValue::Number(n) => {
                         // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
                         // if repeat_count == 0 { repeat_count = usize::MAX; }
                     } // Number
-                    JsonValue::Array(a) => { self.parse_items(&Pattern::from_vector(a))?; }
+                    JsonValue::Array(a) => {
+                        self.parse_items(
+                            &Pattern::from_json_value(&JsonValue::Array(a.clone()))?,
+                            &repeat_count
+                        )?;
+                    } // Array
                     JsonValue::Short(s) => { 
                         debug(&format!("Clip: {:?}", s));
                         self.clips.push_back(s.to_string());
