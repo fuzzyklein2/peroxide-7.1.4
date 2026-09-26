@@ -1,0 +1,328 @@
+fuzzy@fuzzy-Inspiron-3647:~/projects/peroxide$ cargo run -- -h
+   Compiling peroxide v0.1.0 (/home/fuzzy/projects/peroxide)
+error: expected one of `!` or `::`, found `}`
+   --> src/peroxide.rs:203:1
+    |
+194 | impl Refresh for Label {
+    |                        - while parsing this item list starting here
+...
+202 |     } refresh
+    |              - expected one of `!` or `::`
+203 | } // impl
+    | ^
+    | |
+    | unexpected token
+    | the item list ends here
+
+error[E0425]: cannot find function `max` in module `std::u16`
+   --> src/peroxide.rs:355:57
+    |
+355 |         if repeat_count == 0 { repeat_count = std::u16::max(); }
+    |                                                         ^^^
+    |
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/num/shells/legacy_int_modules.rs:55:12
+    |
+    = note: similarly named constant `MAX` defined here
+help: a constant with a similar name exists
+    |
+355 -         if repeat_count == 0 { repeat_count = std::u16::max(); }
+355 +         if repeat_count == 0 { repeat_count = std::u16::MAX(); }
+    |
+help: consider importing this function
+    |
+  6 + use std::cmp::max;
+    |
+help: if you import `max`, refer to it directly
+    |
+355 -         if repeat_count == 0 { repeat_count = std::u16::max(); }
+355 +         if repeat_count == 0 { repeat_count = max(); }
+    |
+
+error[E0599]: no method named `empty` found for struct `PathBuf` in the current scope
+  --> src/peroxide.rs:48:18
+   |
+48 |     if lists_dir.empty() {
+   |                  ^^^^^
+   |
+help: there is a method `is_empty` with a similar name
+   |
+48 |     if lists_dir.is_empty() {
+   |                  +++
+
+error[E0061]: this enum variant takes 1 argument but 0 arguments were supplied
+   --> src/peroxide.rs:105:13
+    |
+105 |             Err()
+    |             ^^^-- argument #1 of type `std::io::Error` is missing
+    |
+note: tuple variant defined here
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:566:4
+help: provide the argument
+    |
+105 |             Err(/* std::io::Error */)
+    |                 ++++++++++++++++++++
+
+error[E0063]: missing field `repeat_count` in initializer of `peroxide::Pattern`
+   --> src/peroxide.rs:128:12
+    |
+128 |         Ok(Self {
+    |            ^^^^ missing `repeat_count`
+
+error[E0277]: `Clip` doesn't implement `std::fmt::Debug`
+   --> src/peroxide.rs:214:5
+    |
+211 | #[derive(Debug)]
+    |          ----- in this derive macro expansion
+...
+214 |     cache: HashMap<OsString, Clip>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `Clip`
+    |
+help: the trait `std::fmt::Debug` is conditionally implemented for `HashMap<K, V, S, A>`
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/std/src/collections/hash/map.rs:1476:0
+   ::: /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/std/src/collections/hash/map.rs:1479:7
+    |
+    = note: unsatisfied requirement introduced here: `Clip: std::fmt::Debug`
+help: consider annotating `Clip` with `#[derive(Debug)]`
+    |
+ 64 + #[derive(Debug)]
+ 65 | pub struct Clip {
+    |
+
+error[E0277]: `MidiInputConnection<()>` doesn't implement `std::fmt::Debug`
+   --> src/peroxide.rs:219:5
+    |
+211 | #[derive(Debug)]
+    |          ----- in this derive macro expansion
+...
+219 |     midi_connection: Option<MidiInputConnection<()>>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `MidiInputConnection<()>`
+    |
+help: the trait `std::fmt::Debug` is conditionally implemented for `Option<T>`
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:592:15
+   ::: /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:598:16
+    |
+    = note: unsatisfied requirement introduced here: `MidiInputConnection<()>: std::fmt::Debug`
+
+error[E0599]: no variant, associated function, or constant named `Escape` found for enum `PlayerEvent` in the current scope
+   --> src/peroxide.rs:262:66
+    |
+206 | enum PlayerEvent {
+    | ---------------- variant, associated function, or constant `Escape` not found for this enum
+...
+262 |                                 let _ = sender.send(PlayerEvent::Escape);
+    |                                                                  ^^^^^^ variant, associated function, or constant not found in `PlayerEvent`
+
+error[E0609]: no field `song_title` on type `&mut Player`
+   --> src/peroxide.rs:336:40
+    |
+336 |         info(&format!("Song: {}", self.song_title));
+    |                                        ^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `clips`, `cache`, `playing`, `pedal`, `sender` ... and 4 others
+
+error[E0599]: no variant, associated function, or constant named `Escape` found for enum `PlayerEvent` in the current scope
+   --> src/peroxide.rs:391:30
+    |
+206 | enum PlayerEvent {
+    | ---------------- variant, associated function, or constant `Escape` not found for this enum
+...
+391 |                 PlayerEvent::Escape => self.running = false,
+    |                              ^^^^^^ variant, associated function, or constant not found in `PlayerEvent`
+
+error[E0609]: no field `running` on type `&mut Player`
+   --> src/peroxide.rs:391:45
+    |
+391 |                 PlayerEvent::Escape => self.running = false,
+    |                                             ^^^^^^^ unknown field
+    |
+    = note: available fields are: `clips`, `cache`, `playing`, `pedal`, `sender` ... and 4 others
+
+error[E0277]: `?` couldn't convert the error to `std::io::Error`
+   --> src/peroxide.rs:422:44
+    |
+422 |             let js = json::parse(&contents)?;
+    |                      ----------------------^ the trait `From<JsonError>` is not implemented for `std::io::Error`
+    |                      |
+    |                      this can't be annotated with `?` because it has type `Result<_, JsonError>`
+    |
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+    = help: `std::io::Error` implements trait `From<T>`:
+              From<IntoInnerError<W>>
+              From<NulError>
+              From<TryReserveError>
+              From<errno::Errno>
+              From<rustix::backend::io::errno::Errno>
+              From<std::fs::TryLockError>
+              From<std::io::ErrorKind>
+
+error[E0596]: cannot borrow `player` as mutable, as it is not declared as mutable
+   --> src/peroxide.rs:433:5
+    |
+433 |     player.play();
+    |     ^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+432 |     let mut player = Player::new();
+    |         +++
+
+Some errors have detailed explanations: E0061, E0063, E0277, E0425, E0596, E0599, E0609.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `peroxide` (bin "peroxide") due to 13 previous errors
+fuzzy@fuzzy-Inspiron-3647:~/projects/peroxide$ cargo run -- -h
+   Compiling peroxide v0.1.0 (/home/fuzzy/projects/peroxide)
+error[E0425]: cannot find function `max` in module `std::u16`
+   --> src/peroxide.rs:355:57
+    |
+355 |         if repeat_count == 0 { repeat_count = std::u16::max(); }
+    |                                                         ^^^
+    |
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/num/shells/legacy_int_modules.rs:55:12
+    |
+    = note: similarly named constant `MAX` defined here
+help: a constant with a similar name exists
+    |
+355 -         if repeat_count == 0 { repeat_count = std::u16::max(); }
+355 +         if repeat_count == 0 { repeat_count = std::u16::MAX(); }
+    |
+help: consider importing this function
+    |
+  6 + use std::cmp::max;
+    |
+help: if you import `max`, refer to it directly
+    |
+355 -         if repeat_count == 0 { repeat_count = std::u16::max(); }
+355 +         if repeat_count == 0 { repeat_count = max(); }
+    |
+
+error[E0599]: no method named `empty` found for struct `PathBuf` in the current scope
+  --> src/peroxide.rs:48:18
+   |
+48 |     if lists_dir.empty() {
+   |                  ^^^^^
+   |
+help: there is a method `is_empty` with a similar name
+   |
+48 |     if lists_dir.is_empty() {
+   |                  +++
+
+error[E0061]: this enum variant takes 1 argument but 0 arguments were supplied
+   --> src/peroxide.rs:105:13
+    |
+105 |             Err()
+    |             ^^^-- argument #1 of type `std::io::Error` is missing
+    |
+note: tuple variant defined here
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:566:4
+help: provide the argument
+    |
+105 |             Err(/* std::io::Error */)
+    |                 ++++++++++++++++++++
+
+error[E0063]: missing field `repeat_count` in initializer of `peroxide::Pattern`
+   --> src/peroxide.rs:128:12
+    |
+128 |         Ok(Self {
+    |            ^^^^ missing `repeat_count`
+
+error[E0277]: `Clip` doesn't implement `std::fmt::Debug`
+   --> src/peroxide.rs:214:5
+    |
+211 | #[derive(Debug)]
+    |          ----- in this derive macro expansion
+...
+214 |     cache: HashMap<OsString, Clip>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `Clip`
+    |
+help: the trait `std::fmt::Debug` is conditionally implemented for `HashMap<K, V, S, A>`
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/std/src/collections/hash/map.rs:1476:0
+   ::: /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/std/src/collections/hash/map.rs:1479:7
+    |
+    = note: unsatisfied requirement introduced here: `Clip: std::fmt::Debug`
+help: consider annotating `Clip` with `#[derive(Debug)]`
+    |
+ 64 + #[derive(Debug)]
+ 65 | pub struct Clip {
+    |
+
+error[E0277]: `MidiInputConnection<()>` doesn't implement `std::fmt::Debug`
+   --> src/peroxide.rs:219:5
+    |
+211 | #[derive(Debug)]
+    |          ----- in this derive macro expansion
+...
+219 |     midi_connection: Option<MidiInputConnection<()>>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `MidiInputConnection<()>`
+    |
+help: the trait `std::fmt::Debug` is conditionally implemented for `Option<T>`
+   --> /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:592:15
+   ::: /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:598:16
+    |
+    = note: unsatisfied requirement introduced here: `MidiInputConnection<()>: std::fmt::Debug`
+
+error[E0599]: no variant, associated function, or constant named `Escape` found for enum `PlayerEvent` in the current scope
+   --> src/peroxide.rs:262:66
+    |
+206 | enum PlayerEvent {
+    | ---------------- variant, associated function, or constant `Escape` not found for this enum
+...
+262 |                                 let _ = sender.send(PlayerEvent::Escape);
+    |                                                                  ^^^^^^ variant, associated function, or constant not found in `PlayerEvent`
+
+error[E0609]: no field `song_title` on type `&mut Player`
+   --> src/peroxide.rs:336:40
+    |
+336 |         info(&format!("Song: {}", self.song_title));
+    |                                        ^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `clips`, `cache`, `playing`, `pedal`, `sender` ... and 4 others
+
+error[E0599]: no variant, associated function, or constant named `Escape` found for enum `PlayerEvent` in the current scope
+   --> src/peroxide.rs:391:30
+    |
+206 | enum PlayerEvent {
+    | ---------------- variant, associated function, or constant `Escape` not found for this enum
+...
+391 |                 PlayerEvent::Escape => self.running = false,
+    |                              ^^^^^^ variant, associated function, or constant not found in `PlayerEvent`
+
+error[E0609]: no field `running` on type `&mut Player`
+   --> src/peroxide.rs:391:45
+    |
+391 |                 PlayerEvent::Escape => self.running = false,
+    |                                             ^^^^^^^ unknown field
+    |
+    = note: available fields are: `clips`, `cache`, `playing`, `pedal`, `sender` ... and 4 others
+
+error[E0277]: `?` couldn't convert the error to `std::io::Error`
+   --> src/peroxide.rs:422:44
+    |
+422 |             let js = json::parse(&contents)?;
+    |                      ----------------------^ the trait `From<JsonError>` is not implemented for `std::io::Error`
+    |                      |
+    |                      this can't be annotated with `?` because it has type `Result<_, JsonError>`
+    |
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+    = help: `std::io::Error` implements trait `From<T>`:
+              From<IntoInnerError<W>>
+              From<NulError>
+              From<TryReserveError>
+              From<errno::Errno>
+              From<rustix::backend::io::errno::Errno>
+              From<std::fs::TryLockError>
+              From<std::io::ErrorKind>
+
+error[E0596]: cannot borrow `player` as mutable, as it is not declared as mutable
+   --> src/peroxide.rs:433:5
+    |
+433 |     player.play();
+    |     ^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+432 |     let mut player = Player::new();
+    |         +++
+
+Some errors have detailed explanations: E0061, E0063, E0277, E0425, E0596, E0599, E0609.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `peroxide` (bin "peroxide") due to 12 previous errors
