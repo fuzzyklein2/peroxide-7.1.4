@@ -70,8 +70,14 @@ trait FromString: Sized {
         Self: Sized;
 }
 
-trait FromJsonValue: Sized {
+trait FromJsonValue {
     fn from_json_value(js: &JsonValue) -> Result<Self, Error>
+    where
+        Self: Sized;
+}
+
+trait FromVector<T> {
+    fn from_vector(&mut self, v: Vec<T>) -> Result<Self, Error>
     where
         Self: Sized;
 }
@@ -133,7 +139,7 @@ impl FromFile for Clip {
 
 #[derive(Debug)]
 pub struct Pattern {
-    repeat_count: ,
+    repeat_count: u16,
     value: JsonValue,
 }
 
@@ -149,6 +155,13 @@ impl FromString for Pattern {
     fn from_string(s: &str) -> Result<Self, Error> {
         let mut js = json::parse(&s).unwrap();
         let mut repeat_count = 1;
+        Ok(Pattern::from_json_value(&js)?)
+    } // from_string
+} // impl
+
+impl FromJsonValue for Pattern {
+    fn from_json_value(js: &JsonValue) -> Result<Self, Error> {
+        let mut repeat_count = 1;
         for i in 0..js.len() {
             match js[i] {
                 JsonValue::Number(n) => {
@@ -162,10 +175,30 @@ impl FromString for Pattern {
         Ok(
             Self {
                 repeat_count,
-                value: js,
+                value: js.clone(),
             } // Self
-        ) // Ok
-    } // from_string
+        ) // Ok        
+    } // from_json_value
+} //impl
+
+impl FromVector<JsonValue> for Pattern {
+    fn from_vector(&mut self, v: Vec<JsonValue>) -> Result<Self, Error> {
+        let mut a = JsonValue::new_array();
+        let mut repeat_count: u16 = 1;
+        for value in v {
+            match value {
+                JsonValue::Number(n) => repeat_count = n.as_fixed_point_i64(0).unwrap() as u16,
+                JsonValue::Short(s) => a.push(s.as_str())?,
+                JsonValue::Array(js) => a.push(js)?,
+            } // match
+        } // for value
+        Ok (
+            Self {
+                repeat_count,
+                value: a,
+            } // Self
+        ) //Ok
+    } // from_vector
 } // impl
 
 // TODO: Implement Pattern::from_json_value
@@ -410,7 +443,10 @@ impl Player {
         self.playing = true;
         
         match pattern.value {
-            JsonValue::Array(a) => self.parse_items(&a, &pattern.repeat_count),
+            JsonValue::Array(a) => self.parse_items(
+                &Pattern::from_json_value(&json::from(a))?, 
+                &pattern.repeat_count
+            ), // parse_items
             _ => {
                 error("Pattern must be an array!");
                 Ok(())
@@ -423,16 +459,16 @@ impl Player {
         // ...
         debug(&format!("Parsing pattern: {:?}", pattern));
         let mut iteration = 0;
-        if *repeat_count == 0 { repeat_count = 10000; }
+        if *repeat_count == 0 { repeat_count = &10000; }
 
-        while iteration < pattern.repeat_count {
-            for item in pattern {
-                match item {
+        while iteration < *repeat_count {
+            for i in 0..pattern.value.len() {
+                match pattern.value[i] {
                     JsonValue::Number(n) => {
                         // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
                         // if repeat_count == 0 { repeat_count = usize::MAX; }
                     } // Number
-                    JsonValue::Array(a) => { self.parse_items(&a,)?; }
+                    JsonValue::Array(a) => { self.parse_items(&Pattern::from_vector(a))?; }
                     JsonValue::Short(s) => { 
                         debug(&format!("Clip: {:?}", s));
                         self.clips.push_back(s.to_string());
@@ -468,7 +504,7 @@ impl Player {
     pub fn play(&mut self) -> Result<(), Error> {
         self.init()?;
         
-        for song_title in self.song_list {
+        for song_title in self.song_list.clone() {
             info(&format!("Song: {}", song_title));
             let song_folder = self.songs_folder.join(song_title);
             let clips_folder = song_folder.join(CLIPS_DIR_NAME);
@@ -480,7 +516,7 @@ impl Player {
                 let key: OsString = f.path().file_stem().expect("REASON").to_owned();
                 match Clip::from_file(f.path()) {
                     Ok(clip) => {
-                        self.cache.insert(key, clip); 
+                        self.cache.insert(key.clone(), clip); 
                         info(&format!("Clip loaded: {:?}", key));            
                     } // Ok
                     Err(e) => {
@@ -491,7 +527,7 @@ impl Player {
             let song_file = song_folder.join(SONG_FILE_NAME);
             let contents = fs::read_to_string(song_file)?;
             match json::parse(&contents) {
-                Ok(js) => { self.parse(&Pattern::from_json_value(js))?; }
+                Ok(js) => { self.parse(Pattern::from_json_value(&js)?)?; }
                 Err(e) => { error("Error parsing JSON pattern!"); }
             } // match
         } // for song_title
