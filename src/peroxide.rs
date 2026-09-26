@@ -410,7 +410,7 @@ impl Player {
         self.playing = true;
         
         match pattern.value {
-            JsonValue::Array(a) => self.parse_items(&a), &pattern.repeat_count),
+            JsonValue::Array(a) => self.parse_items(&a, &pattern.repeat_count),
             _ => {
                 error("Pattern must be an array!");
                 Ok(())

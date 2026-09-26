@@ -29,9 +29,8 @@ rust/
 
 # *.txt
 Untitled*
-output.txt
+*.txt
 untitled*
-tree.txt
 *.gch
 test/
 *#
