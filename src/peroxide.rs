@@ -26,11 +26,11 @@ use json::{ JsonValue };
 use maudio;
 use midir::{ MidiInput, MidiInputConnection };
 
-use crate::{ ARGUMENTS, CONFIGURATION, INPUT };
-use crate::files;
-use crate::files::{ read_lines };
+use hw::{ ARGUMENTS, CONFIGURATION, INPUT };
+use hw::files;
+use hw::files::{ read_lines };
 // use crate::ARGUMENTS;
-use crate::logging::{ error, warn, info, debug, trace, init_log };
+use hw::logging::{ error, warn, info, debug, trace, init_log };
 
 pub const SONGS_DIR_NAME: &str = "songs";
 pub const CLIPS_DIR_NAME: &str = "clips";
@@ -528,6 +528,7 @@ impl Player {
 
 
 pub fn run() -> Result<(), Error> {
+    debug("Running peroxide");
     let mut player = Player::new();
     player.play();
     // TODO: Implement the curses style interface in the comment below.

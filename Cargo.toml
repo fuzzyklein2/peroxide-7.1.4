@@ -13,3 +13,4 @@ json = "0.12"
 crossterm = "0.29"
 maudio = "0.1.14"
 midir = "0.11.0"
+hw = { version = "0.1.0", path = "../hw" }

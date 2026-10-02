@@ -7,30 +7,31 @@
 use std::io::{ Error };
 use std::sync::{ OnceLock };
 
-mod config;
-mod constants;
-mod files;
-mod getargs;
-mod logging;
-mod utilities;
-
-use config::{ configure, JSON };
-use constants::{ BASE_DIR };
-use files::{ cwd, FileSystem, home };
-use getargs::{ Args };
-use logging::{ debug, init_log };
+use hw::{ ARGUMENTS, CONFIGURATION, FILE_SYSTEM, INPUT };
+use hw::config::{ configure, JSON };
+use hw::constants::{ BASE_DIR };
+use hw::files::{ cwd, FileSystem, home };
+use hw::getargs::{ Args };
+use hw::logging::{ debug, info, init_log };
+use hw::utilities::program_name;
 
 mod peroxide;
 
-static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
-static CONFIGURATION: OnceLock<JSON> = OnceLock::new();
-static INPUT: OnceLock<String> = OnceLock::new();
-static ARGUMENTS: OnceLock<Args> = OnceLock::new();
+// static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
+// static CONFIGURATION: OnceLock<JSON> = OnceLock::new();
+// static INPUT: OnceLock<String> = OnceLock::new();
+// static ARGUMENTS: OnceLock<Args> = OnceLock::new();
 
+/******************************************************************************
+*
+*   main()
+*
+******************************************************************************/
 fn main() -> Result<(), Error> {
     configure()?;
     init_log()?;
 
+    debug(&format!("Program name: {}", program_name()?));
     let s = cwd().unwrap();
     debug(&format!("Current working directory: {}", s.display()));
     let s = BASE_DIR.display();
@@ -52,8 +53,21 @@ Log file:           {}
 "#, json::stringify_pretty(CONFIGURATION.get().unwrap().value.clone(), 4)
 ));
     
+    info(&format!("Hello, 🌎 !"));
 
+    // Add any other processing here.
 
     peroxide::run()?;
+    
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_program_name() {
+        let PROGRAM = program_name().unwrap();
+        assert!(PROGRAM.starts_with("peroxide"));
+    }
 }
