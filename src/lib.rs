@@ -3,6 +3,9 @@ pub use clips::Clip;
 
 pub mod files;
 
+pub mod frames;
+pub use frames::Frame;
+
 mod patterns;
 pub use patterns::Pattern;
 

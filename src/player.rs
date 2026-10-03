@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use std::collections::{ HashMap, VecDeque };
 use std::ffi::{ OsString };
 use std::fs;
@@ -35,6 +36,7 @@ use crate::{
         SONGS_DIR_NAME,
         SONG_FILE_NAME,
     },
+    Frame,
     Pattern,
     traits::{
         FromFile,
@@ -49,12 +51,14 @@ enum PlayerEvent {
     Escape,
     Rewind,
     Next,
+    // PatternFinished,
 } // PlayerEvent
 
 pub struct Player {
     // Debug is not implemented for MidiInputConnection!
     clips: VecDeque<String>,
     cache: HashMap<OsString, Clip>,
+    patterns: Vec<Pattern>,
     playing: bool,
     pedal: bool,
     sender: Sender<PlayerEvent>,
@@ -73,6 +77,7 @@ impl Player {
         Self {
             clips: VecDeque::new(),
             cache: HashMap::<OsString, Clip>::new(),
+            patterns: Vec::<Pattern>::new(),
             playing: false,
             pedal: false,
             sender,
