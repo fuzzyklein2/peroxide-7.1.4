@@ -15,7 +15,8 @@ use hw::getargs::{ Args };
 use hw::logging::{ debug, info, init_log };
 use hw::utilities::program_name;
 
-mod peroxide;
+// mod peroxide;
+use peroxide::peroxide;
 
 // static FILE_SYSTEM: OnceLock<FileSystem> = OnceLock::new();
 // static CONFIGURATION: OnceLock<JSON> = OnceLock::new();
@@ -27,6 +28,7 @@ mod peroxide;
 *   main()
 *
 ******************************************************************************/
+
 fn main() -> Result<(), Error> {
     configure()?;
     init_log()?;

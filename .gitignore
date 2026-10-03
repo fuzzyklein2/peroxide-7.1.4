@@ -48,3 +48,5 @@ __pycache__/
 # Added by cargo
 
 /target
+temp/
+docs/
