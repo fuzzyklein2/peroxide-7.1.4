@@ -15,14 +15,14 @@ pub struct Frame{
 
 
 impl FromPattern for Frame {
-    fn from_pattern(&mut self, p: Pattern) -> Result<Self, Error> {
-        Ok(
+    fn from_pattern(p: Pattern) -> Self {
+        // Ok(
             Self {
-                pattern: p.clone(),
+                pattern: p,
                 iteration: 0,
                 current_item: 0,
                 // repetitions: p.repeat_count,
             } // Self
-        ) // Ok        
+        // ) // Ok        
     } // from_json_value
 } //impl

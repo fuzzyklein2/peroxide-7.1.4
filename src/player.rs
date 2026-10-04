@@ -41,6 +41,7 @@ use crate::{
     traits::{
         FromFile,
         FromJsonValue,
+        FromPattern,
     },
 };
 
@@ -58,7 +59,7 @@ pub struct Player {
     // Debug is not implemented for MidiInputConnection!
     clips: VecDeque<String>,
     cache: HashMap<OsString, Clip>,
-    patterns: Vec<Pattern>,
+    frames: Vec<Frame>,
     playing: bool,
     pedal: bool,
     sender: Sender<PlayerEvent>,
@@ -77,7 +78,7 @@ impl Player {
         Self {
             clips: VecDeque::new(),
             cache: HashMap::<OsString, Clip>::new(),
-            patterns: Vec::<Pattern>::new(),
+            frames: Vec::<Frame>::new(),
             playing: false,
             pedal: false,
             sender,
@@ -96,6 +97,8 @@ impl Player {
         self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);
         self.get_keyboard_events();
         self.start_midi();
+        // self.start_audio();
+        self.play_list();
         Ok(())
     } // init
 
@@ -257,7 +260,45 @@ impl Player {
             } // match
         } // while
     } // poll_events
-    
+
+    fn play_list(&mut self) -> Result<(), Error> {
+        for song_title in self.song_list.clone() {
+            let song_folder = session_folder()?
+                              .join(SONGS_DIR_NAME)
+                              .join(song_title);
+            let song_file = song_folder.join(SONG_FILE_NAME);
+            let clips_folder = song_folder.join(CLIPS_DIR_NAME);
+            let song_pattern = Pattern::from_file(song_file)?;
+            let song_frame = Frame::from_pattern(song_pattern);
+            let clip_files: Vec<_> = fs::read_dir(clips_folder)?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            self.frames.push(song_frame);
+
+            for f in clip_files {
+                let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+                match Clip::from_file(f.path()) {
+                    Ok(clip) => {
+                        self.cache.insert(key.clone(), clip); 
+                        info(&format!("Clip loaded: {:?}", key));            
+                    } // Ok
+                    Err(e) => {
+                        error(&format!("Clip could not be loaded from file: {:?}: {}", key, e)); 
+                    } // Err
+                } // match
+            } // for f
+
+            // wait_for_pedal()
+            self.play_song();
+        } // for song
+        Ok(())
+    } // play_list
+
+    fn play_song(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// ⚠️ Deprecated
     pub fn play(&mut self) -> Result<(), Error> {
         self.init()?;
         

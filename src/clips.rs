@@ -28,6 +28,7 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+/// TODO: Each clip should store its duration in a member.
 impl FromFile for Clip {
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut info = AudioInfo {

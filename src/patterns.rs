@@ -18,6 +18,8 @@ use crate::traits::{
 pub struct Pattern {
     pub repeat_count: u16,
     pub value: JsonValue,
+    pub pause: bool,
+    pub infinite: bool,
 }
 
 impl FromFile for Pattern {
@@ -53,6 +55,8 @@ impl FromJsonValue for Pattern {
             Self {
                 repeat_count,
                 value: js.clone(),
+                pause: false,
+                infinite: false,
             } // Self
         ) // Ok        
     } // from_json_value
@@ -76,6 +80,8 @@ impl FromVector<JsonValue> for Pattern {
             Self {
                 repeat_count,
                 value: a,
+                pause: false,
+                infinite: false,
             } // Self
         ) //Ok
     } // from_vector

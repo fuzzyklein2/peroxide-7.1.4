@@ -30,8 +30,6 @@ pub trait FromVector<T> {
 }
 
 pub trait FromPattern {
-    fn from_pattern(&mut self, p: Pattern) -> Result<Self, Error>
-    where
-        Self: Sized;
+    fn from_pattern(p: Pattern) -> Self;
 }
 
