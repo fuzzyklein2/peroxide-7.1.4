@@ -3,6 +3,8 @@ use std::path::Path;
 
 use json::JsonValue;
 
+use crate::Pattern;
+
 pub trait FromFile: Sized {
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error>
     where
@@ -23,6 +25,12 @@ pub trait FromJsonValue {
 
 pub trait FromVector<T> {
     fn from_vector(&mut self, v: Vec<T>) -> Result<Self, Error>
+    where
+        Self: Sized;
+}
+
+pub trait FromPattern {
+    fn from_pattern(&mut self, p: Pattern) -> Result<Self, Error>
     where
         Self: Sized;
 }

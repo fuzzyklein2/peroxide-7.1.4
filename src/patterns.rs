@@ -14,7 +14,7 @@ use crate::traits::{
     FromVector,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Pattern {
     pub repeat_count: u16,
     pub value: JsonValue,
