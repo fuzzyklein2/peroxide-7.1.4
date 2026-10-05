@@ -261,6 +261,24 @@ impl Player {
         } // while
     } // poll_events
 
+    fn wait_for_pedal(&mut self) {
+        while let Ok(event) = self.receiver.recv() {
+            match event {
+                PlayerEvent::Pedal | PlayerEvent::Space => {
+                    self.pedal = true;
+                    break;
+                }
+                _ => {}
+                // PlayerEvent::Escape => {
+                //     self.playing = false;
+                //     break;
+                // }
+                // PlayerEvent::Rewind => self.rewind = true,
+                // PlayerEvent::Next => self.next = true,
+            }
+        }
+    }
+    
     fn play_list(&mut self) -> Result<(), Error> {
         for song_title in self.song_list.clone() {
             let song_folder = session_folder()?
@@ -288,7 +306,7 @@ impl Player {
                 } // match
             } // for f
 
-            // wait_for_pedal()
+            self.wait_for_pedal();
             self.play_song();
         } // for song
         Ok(())
