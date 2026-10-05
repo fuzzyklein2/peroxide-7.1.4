@@ -137,7 +137,7 @@ impl Player {
         let mut files: Vec<_> = fs::read_dir(clips_folder)?
             .collect::<Result<Vec<_>, _>>()?;
 
-        let path = files[0];
+        let path = &files[0];
 
         let filename = CString::new(
             path.path().to_str()
