@@ -128,7 +128,7 @@ impl Player {
 
         let clips_folder = songs_folder
                            .join(self.song_list[0])
-                           .join(CLIPS_DIR_NAME)
+                           .join(CLIPS_DIR_NAME);
 
         let mut files: Vec<_> = fs::read_dir(clips_folder)?
             .collect::<Result<Vec<_>, _>>()?;
