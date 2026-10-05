@@ -21,10 +21,12 @@ pub struct Clip {
 
 impl std::fmt::Debug for Clip {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Clip")
-            // other useful fields...
-            .field("samples", &"<audio samples>")
-            .finish()
+    f.debug_struct("Clip")
+        .field("frames", &self.frames)
+        .field("channels", &self.channels)
+        .field("sample_rate", &self.sample_rate)
+        .field("duration", &self.duration)
+        .finish()
     }
 }
 
