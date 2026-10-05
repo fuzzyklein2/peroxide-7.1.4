@@ -149,7 +149,7 @@ impl Player {
             get_audio_info(filename.as_ptr(), &mut info)
         };
                 
-        device = DeviceBuilder::playback()
+        let device = DeviceBuilder::playback()
             .f32()
             .playback_channels(2)
             .sample_rate(info.sample_rate)
