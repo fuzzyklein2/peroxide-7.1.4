@@ -157,7 +157,8 @@ impl Player {
             .sample_rate(SampleRate::Custom(info.sample_rate))
             .with_callback(|_device, output| {
                 output.fill(0.0);
-            })?;
+            })
+            .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
         
         device.device_start()?;
         
