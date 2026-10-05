@@ -151,18 +151,18 @@ impl Player {
             get_audio_info(filename.as_ptr(), &mut info)
         };
                 
-        self.device = DeviceBuilder::playback()
-            .f32()
-            .playback_channels(2)
-            .sample_rate(SampleRate::Custom(info.sample_rate))
-            .with_callback(|_device, output| {
-                output.fill(0.0);
-            })
-            .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
-        
+        self.device = Some(
+            DeviceBuilder::playback()
+                .f32()
+                .playback_channels(2)
+                .sample_rate(SampleRate::Custom(info.sample_rate))
+                .with_callback(|_device, output| {
+                    output.fill(0.0);
+                }).map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
+        );
         self.device.device_start()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
-
+)
         Ok(())
     } // init
 
