@@ -86,6 +86,7 @@ pub struct Player {
     rewind: bool,
     next: bool,
     sample_rate: u32,
+    device: Option<Device>,
 } // Player
 
 impl Player {
@@ -106,6 +107,7 @@ impl Player {
             rewind: false,
             next: false,
             sample_rate: 0,
+            device: None,
         } // Self
     } // new
 
@@ -117,6 +119,44 @@ impl Player {
         self.start_midi();
         // self.start_audio();
         self.play_list();
+        
+        let mut info = AudioInfo {
+            channels: 0,
+            sample_rate: 0,
+            frames: 0,
+        };
+
+        let clips_folder = songs_folder
+                           .join(self.song_list[0])
+                           .join(CLIPS_DIR_NAME)
+
+        let mut files: Vec<_> = fs::read_dir(clips_folder)?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let path = files[0];
+
+        let filename = CString::new(
+            path.to_str()
+                .ok_or_else(|| Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Invalid filename",
+                ))?
+        )?;
+        
+        let result = unsafe {
+            get_audio_info(filename.as_ptr(), &mut info)
+        };
+                
+        device = DeviceBuilder::playback()
+            .f32()
+            .playback_channels(2)
+            .sample_rate(info.sample_rate)
+            .with_callback(|_device, output| {
+                output.fill(0.0);
+            })?;
+        
+        device.device_start()?;
+        
         Ok(())
     } // init
 
