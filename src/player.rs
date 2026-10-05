@@ -160,7 +160,7 @@ impl Player {
             })
             .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
         
-        device.device_start()?;
+        device.device_start()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
 
         Ok(())
