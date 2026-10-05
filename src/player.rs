@@ -1,6 +1,6 @@
 #![allow(warnings)]
 use std::collections::{ HashMap, VecDeque };
-use std::ffi::{ OsString };
+use std::ffi::{ CString, OsString };
 use std::fs;
 use std::io::{ Error, ErrorKind };
 use std::path::PathBuf;
@@ -127,7 +127,7 @@ impl Player {
             frames: 0,
         };
 
-        let clips_folder = songs_folder
+        let clips_folder = self.songs_folder
                            .join(self.song_list[0])
                            .join(CLIPS_DIR_NAME);
 
