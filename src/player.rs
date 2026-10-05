@@ -19,6 +19,7 @@ use crossterm::{ execute, ExecutableCommand, QueueableCommand,
 
 use json::JsonValue;
 
+use maudio::audio::sample_rate::SampleRate;
 use maudio::device::Device;
 use maudio::device::device_builder::DeviceBuilder;
 use maudio::device::device_builder::DeviceBuilderOps;
