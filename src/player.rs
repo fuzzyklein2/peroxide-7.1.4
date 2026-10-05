@@ -160,9 +160,9 @@ impl Player {
                     output.fill(0.0);
                 }).map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
         );
-        self.device.device_start()
+        self.device.as_mut().expect("Audio device error").device_start()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
-)
+
         Ok(())
     } // init
 
