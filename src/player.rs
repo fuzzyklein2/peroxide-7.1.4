@@ -18,6 +18,10 @@ use crossterm::{ execute, ExecutableCommand, QueueableCommand,
 };
 
 use json::JsonValue;
+
+use maudio::device::Device;
+use maudio::device::device_builder::DeviceBuilder;
+
 use midir::{ MidiInput, MidiInputConnection };
 
 use hw::{
@@ -54,6 +58,18 @@ enum PlayerEvent {
     Next,
     // PatternFinished,
 } // PlayerEvent
+
+/*
+let mut device = DeviceBuilder::playback()
+    .f32()
+    .playback_channels(2)
+    .sample_rate(SampleRate::Sr48000)
+    .with_callback(|_device, output| {
+        output.fill(0.0);
+    })?;
+
+device.device_start()?;
+*/
 
 pub struct Player {
     // Debug is not implemented for MidiInputConnection!
@@ -351,4 +367,5 @@ impl Player {
         Ok(())
     } // play
 } // impl Player
+
 
