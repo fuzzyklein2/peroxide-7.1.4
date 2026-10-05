@@ -88,7 +88,7 @@ pub struct Player {
     rewind: bool,
     next: bool,
     sample_rate: u32,
-    device: Option<Device>,
+    device: Option<Device<f32>>,
 } // Player
 
 impl Player {
