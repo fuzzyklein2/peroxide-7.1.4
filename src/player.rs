@@ -85,6 +85,7 @@ pub struct Player {
     songs_folder: PathBuf,
     rewind: bool,
     next: bool,
+    sample_rate: u32,
 } // Player
 
 impl Player {
@@ -103,7 +104,8 @@ impl Player {
             song_list: Vec::new(),
             songs_folder: PathBuf::new(),
             rewind: false,
-            next: false
+            next: false,
+            sample_rate: 0,
         } // Self
     } // new
 
