@@ -59,6 +59,7 @@
 //! * **Line 26**:  Test using an Option as Pattern::repeat_count
 
 pub mod clips;
+pub use clips::AudioInfo;
 pub use clips::Clip;
 
 pub mod files;

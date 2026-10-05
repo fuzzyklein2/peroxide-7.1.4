@@ -32,6 +32,7 @@ use hw::{
 };
 
 use crate::{
+    AudioInfo,
     Clip,
     files::{
         CLIPS_DIR_NAME,
