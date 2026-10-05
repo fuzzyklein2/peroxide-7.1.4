@@ -154,7 +154,7 @@ impl Player {
         let device = DeviceBuilder::playback()
             .f32()
             .playback_channels(2)
-            .sample_rate(SampleRate::from(info.sample_rate))
+            .sample_rate(SampleRate::from(maudio::audio::sample_rate::SampleRate::Custom(info.sample_rate)))
             .with_callback(|_device, output| {
                 output.fill(0.0);
             })?;
