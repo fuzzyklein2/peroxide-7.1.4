@@ -21,6 +21,7 @@ use json::JsonValue;
 
 use maudio::device::Device;
 use maudio::device::device_builder::DeviceBuilder;
+use maudio::device::device_builder::DeviceBuilderOps;
 
 use midir::{ MidiInput, MidiInputConnection };
 
