@@ -42,6 +42,7 @@ use crate::{
         SONG_FILE_NAME,
     },
     Frame,
+    get_audio_info,
     Pattern,
     traits::{
         FromFile,

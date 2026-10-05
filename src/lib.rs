@@ -61,6 +61,7 @@
 pub mod clips;
 pub use clips::AudioInfo;
 pub use clips::Clip;
+pub use clips::get_audio_info;
 
 pub mod files;
 

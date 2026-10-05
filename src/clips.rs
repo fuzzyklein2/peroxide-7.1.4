@@ -38,7 +38,7 @@ pub struct AudioInfo {
 }
 
 unsafe extern "C" {
-    fn get_audio_info(
+    pub fn get_audio_info(
         filename: *const std::ffi::c_char,
         info: *mut AudioInfo,
     ) -> i32;
