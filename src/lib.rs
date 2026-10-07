@@ -80,3 +80,6 @@ mod terminal;
 pub mod tests;
 
 pub mod traits;
+
+pub mod types;
+pub use types::u32_to_usize;

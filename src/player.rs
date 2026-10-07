@@ -51,6 +51,7 @@ use crate::{
         FromJsonValue,
         FromPattern,
     },
+    u32_to_usize,
 };
 
 #[derive(Debug)]
@@ -63,23 +64,11 @@ enum PlayerEvent {
     // PatternFinished,
 } // PlayerEvent
 
-/*
-let mut device = DeviceBuilder::playback()
-    .f32()
-    .playback_channels(2)
-    .sample_rate(SampleRate::Sr48000)
-    .with_callback(|_device, output| {
-        output.fill(0.0);
-    })?;
-
-device.device_start()?;
-*/
-
 pub struct Player {
     // Debug is not implemented for MidiInputConnection!
-    clips: VecDeque<String>,
-    cache: HashMap<OsString, Clip>,
-    frames: Vec<Frame>,
+    clips: VecDeque<String>, // names of clips, not actal clips
+    cache: HashMap<OsString, Clip>, // clips loaded from files
+    frames: Vec<Frame>, // pattern stack
     playing: bool,
     pedal: bool,
     sender: Sender<PlayerEvent>,
@@ -91,6 +80,9 @@ pub struct Player {
     next: bool,
     sample_rate: u32,
     device: Option<Device<f32>>,
+    current_sample_index: usize,
+    // clip_slices: VecDeque<Vec<f32>>,
+    current_clip: Option<OsString>,
 } // Player
 
 impl Player {
@@ -112,6 +104,9 @@ impl Player {
             next: false,
             sample_rate: 0,
             device: None,
+            current_sample_index: 0,
+            current_clip: Some(OsString::new()),
+            // clip_slices: VecDeque::new(),
         } // Self
     } // new
 
@@ -124,11 +119,15 @@ impl Player {
         // self.start_audio();
         self.play_list();
         
-        let mut info = AudioInfo {
+        let mut audio_info = AudioInfo {
             channels: 0,
             sample_rate: 0,
             frames: 0,
         };
+
+        let channels = audio_info.channels;
+        let sample_rate = audio_info.sample_rate;
+        let frames = audio_info.frames;
 
         let clips_folder = self.songs_folder
                            .join(&self.song_list[0])
@@ -148,18 +147,82 @@ impl Player {
         )?;
         
         let result = unsafe {
-            get_audio_info(filename.as_ptr(), &mut info)
+            get_audio_info(filename.as_ptr(), &mut audio_info)
         };
+
+        // self.current_sample_index = 0;
                 
         self.device = Some(
             DeviceBuilder::playback()
                 .f32()
                 .playback_channels(2)
-                .sample_rate(SampleRate::Custom(info.sample_rate))
+                .sample_rate(SampleRate::Custom(audio_info.sample_rate))
+
                 .with_callback(|_device, output| {
-                    output.fill(0.0);
+
+                    let requested_samples = output.len();
+                    
+                    // info(&format!("`output` type: {}", std::any::type_name_of_val(output)));
+                    info(&format!("Number of frames requested: {}",
+                                  output.len() / usize::try_from(audio_info.channels).unwrap()));
+
+
+                    if (!self.playing) {
+                        output.fill(0.0);
+                        return;
+                    } // if !self.playing
+                        
+                    else {
+                        if self.current_clip.is_none() {
+                            self.current_clip = self.next_clip();
+                        
+                            if self.current_clip.is_none() { // song is over
+                                self.playing = false;
+                                output.fill(0.0);
+                                return;
+                            }
+                        
+                            // self.current_sample_index = 0;
+
+                            let mut start = self.current_sample_index;
+                            self.current_sample_index += requested_samples;
+
+                            if self.current_sample_index < self.cache[self.current_clip.as_ref().unwrap()].samples.len() {
+                                output.copy_from_slice(&self.cache[self.current_clip.as_ref().unwrap()].samples.data[start..self.current_sample_index]);
+                                // https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.copy_from_slice
+                            } // if index < len()
+                            else // Finish the current clip and start on the next one.
+                            {
+                                
+                                output.copy_from_slice(&self.cache[self.current_clip.as_ref().unwrap()].samples.data[start..self.cache[self.current_clip.as_ref().unwrap()].samples.data.len()]);
+                                let first_sample_len = self.cache[self.current_clip.as_ref().unwrap()].samples.len() - start;
+                                let samples_still_needed = requested_samples - first_sample_len;
+
+                                self.current_clip = self.next_clip();
+                            
+                                if self.current_clip.is_none() { // song is over
+                                    self.playing = false;
+                                    
+                                    // Instead of output.fill(0.0); just fill the rest of output
+                                    output[first_sample_len..requested_samples].fill(0.0);
+                                    
+                                    
+                                    return;
+                                } // current clip is none
+
+                                // Fill the rest of output with the start of the next clip
+                                
+                            } // Next clip needed to fill output
+                            
+                            
+                        } // current_clip.is_none                        
+                    } // else
+                // while current_sample_index < 
+                
+                // output.fill(0.0);
                 }).map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
         );
+        // self.current_clip = self.next_clip();
         self.device.as_mut().expect("Audio device error").device_start()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
 
@@ -342,6 +405,12 @@ impl Player {
             }
         }
     }
+
+    fn next_clip(&mut self) -> Option<OsString> {
+        Some(
+            OsString::from("placeholder") // name of a clip from the top pattern on the stack
+        )
+    }
     
     fn play_list(&mut self) -> Result<(), Error> {
         for song_title in self.song_list.clone() {
@@ -371,12 +440,14 @@ impl Player {
             } // for f
 
             self.wait_for_pedal();
+            self.playing = true;
             self.play_song();
         } // for song
         Ok(())
     } // play_list
 
     fn play_song(&mut self) -> Result<(), Error> {
+        self.current_clip = self.next_clip();
         Ok(())
     }
 

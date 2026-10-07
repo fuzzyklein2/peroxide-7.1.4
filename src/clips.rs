@@ -12,7 +12,7 @@ use crate::traits::FromFile;
 
 // #[derive(Debug)]
 pub struct Clip {
-    samples: SampleBuffer<f32>,
+    pub samples: SampleBuffer<f32>,
     frames: usize,
     channels: u32,
     sample_rate: u32,
