@@ -48,7 +48,7 @@ impl FromJsonValue for Pattern {
                     if repeat_count == 0 { infinite = true; }
                     break;
                 } // Number
-                _ => { error("Bad pattern element"); }
+                _ => { error("Bad pattern element")?; }
             } // match
         } // for i
         Ok(
@@ -64,10 +64,10 @@ impl FromJsonValue for Pattern {
 impl FromVector<JsonValue> for Pattern {
     fn from_vector(&mut self, v: Vec<JsonValue>) -> Result<Self, Error> {
         let mut a = JsonValue::new_array();
-        let mut repeat_count: u16 = 1;
+        let mut repeat_count: usize = 1;
         for value in v {
             match value {
-                JsonValue::Number(n) => repeat_count = n.as_fixed_point_i64(0).unwrap() as u16,
+                JsonValue::Number(n) => repeat_count = n.as_fixed_point_i64(0).unwrap() as usize,
                 JsonValue::Short(s) => a.push(s.as_str())
                     .map_err(|e| io::Error::other(e.to_string()))?,
                 JsonValue::Array(js) => a.push(js)
