@@ -39,12 +39,12 @@ impl FromString for Pattern {
 
 impl FromJsonValue for Pattern {
     fn from_json_value(js: &JsonValue) -> Result<Self, Error> {
-        let mut repeat_count = 1;
+        let mut repeat_count: usize = 1;
         let mut infinite = false;
         for i in 0..js.len() {
             match js[i] {
                 JsonValue::Number(n) => {
-                    repeat_count = n.as_fixed_point_i64(0).unwrap() as u16;
+                    repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
                     if repeat_count == 0 { infinite = true; }
                     break;
                 } // Number
