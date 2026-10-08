@@ -1,6 +1,7 @@
 use std::ffi::{ CString, };
 use std::io::{ Error, ErrorKind };
-use std::path::{ Path, PathBuf };
+use std::ops::Deref;
+use std::path::{ Path };
 
 use maudio::audio::formats::SampleBuffer;
 use maudio::data_source::sources::decoder::DecoderBuilder;
@@ -27,6 +28,14 @@ impl std::fmt::Debug for Clip {
         .field("sample_rate", &self.sample_rate)
         .field("duration", &self.duration)
         .finish()
+    }
+}
+
+impl Deref for Clip {
+    type Target = [f32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.samples.data
     }
 }
 
@@ -81,19 +90,22 @@ impl FromFile for Clip {
                 e,
             ))?;
         // decoder.read_pcm_frames_into(&self.samples);
-        
-        // else {
-            Ok(Self {
-                // samples: vec![0.0; info.frames as usize * info.channels as usize],
-                samples: decoder
-                    .read_pcm_frames(info.frames.try_into().unwrap())
-                    .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
-                frames: info.frames,
-                channels: info.channels,
-                sample_rate: info.sample_rate,
-                duration: info.frames as f64 / info.sample_rate as f64 * 1000.0,
-            })
-        // }
+
+        Ok(Self {
+            // samples: vec![0.0; info.frames as usize * info.channels as usize],
+            samples: decoder
+                .read_pcm_frames(info.frames.try_into().unwrap())
+                .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
+            frames: info.frames,
+            channels: info.channels,
+            sample_rate: info.sample_rate,
+            duration: info.frames as f64 / info.sample_rate as f64 * 1000.0,
+        })
     }
 }
 
+impl Clip {
+    pub fn length(&self) -> usize {
+        self.samples.len()
+    }
+}

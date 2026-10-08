@@ -1,11 +1,14 @@
 #![allow(warnings)]
 use std::collections::{ HashMap, VecDeque };
-use std::ffi::{ CString, OsString };
+use std::ffi::{ c_char, CString, OsString };
 use std::fs;
 use std::io::{ Error, ErrorKind };
 use std::path::PathBuf;
 // use std::path::{ Path, PathBuf };
+
 use std::sync::{ mpsc::{ channel, Sender, Receiver }};
+use std::sync::{LazyLock, Mutex};
+
 use std::thread;
 use std::time::Duration;
 
@@ -23,6 +26,7 @@ use maudio::audio::sample_rate::SampleRate;
 use maudio::device::Device;
 use maudio::device::device_builder::DeviceBuilder;
 use maudio::device::device_builder::DeviceBuilderOps;
+use maudio::MaudioError;
 
 use midir::{ MidiInput, MidiInputConnection };
 
@@ -34,8 +38,10 @@ use hw::{
 };
 
 use crate::{
+    audio_device_callback,
     AudioInfo,
     Clip,
+    // DEVICE,
     files::{
         CLIPS_DIR_NAME,
         get_most_recent_song_list,
@@ -54,6 +60,10 @@ use crate::{
     u32_to_usize,
 };
 
+// pub static SONG_LIST: LazyLock<Mutex<Vec::<String>>> = LazyLock::new(|| Mutex::new(Vec::<String>::new()));
+pub static SONG_LIST: LazyLock<Mutex<Vec<String>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+
 #[derive(Debug)]
 enum PlayerEvent {
     Pedal,
@@ -64,167 +74,143 @@ enum PlayerEvent {
     // PatternFinished,
 } // PlayerEvent
 
+fn get_song_list() -> Result<(), Error> {
+    let arguments = &ARGUMENTS.get().unwrap().args;
+    let nargs = arguments.len();
+    let mut song_list = SONG_LIST.lock().unwrap();
+    song_list.clear();
+    if let Some(input) = INPUT.get() {
+        // song_list = input.lines().map(str::to_owned).collect();
+
+        song_list.extend(input.lines().map(str::to_owned));
+
+    } else if nargs > 0 {
+        song_list.extend(read_lines(&arguments[0])?);
+    } else {
+        song_list.extend(get_most_recent_song_list()?);
+    }
+    while song_list.last().is_some_and(|s| s.is_empty()) {
+        song_list.pop();
+    }
+    trace(&format!("Songs: {:#?}", song_list));
+    Ok(())
+
+}
+
+fn random_clip_file() -> CString {
+    get_song_list().expect("");
+    let song_list = SONG_LIST.lock().unwrap();
+
+    let clips_folder = session_folder().expect("").join(SONGS_DIR_NAME)
+    .join(&song_list[0])
+    .join(CLIPS_DIR_NAME);
+
+    let mut files: Vec<_> = fs::read_dir(clips_folder).unwrap()
+    .collect::<Result<Vec<_>, _>>().expect("");
+
+    let path = &files[0];
+
+    let filename = CString::new(
+        path.path().to_str()
+        .ok_or_else(|| Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid filename",
+        )).expect("")
+    ).expect("");
+    filename
+}
+
 pub struct Player {
     // Debug is not implemented for MidiInputConnection!
     clips: VecDeque<String>, // names of clips, not actal clips
-    cache: HashMap<OsString, Clip>, // clips loaded from files
+    pub cache: HashMap<String, Clip>, // clips loaded from files
     frames: Vec<Frame>, // pattern stack
-    playing: bool,
+    pub playing: bool,
     pedal: bool,
     sender: Sender<PlayerEvent>,
     receiver: Receiver<PlayerEvent>,
     midi_connection: Option<MidiInputConnection<()>>,
-    song_list: Vec<String>,
     songs_folder: PathBuf,
     rewind: bool,
     next: bool,
     sample_rate: u32,
-    device: Option<Device<f32>>,
-    current_sample_index: usize,
+    // device: Result<Device<f32>, MaudioError>,
+    pub current_sample_index: usize,
     // clip_slices: VecDeque<Vec<f32>>,
-    current_clip: Option<OsString>,
+    // current_clip: Option<OsString>,
 } // Player
 
 impl Player {
     pub fn new () -> Self {
         let(sender, receiver) = channel::<PlayerEvent>();
 
+        let mut info = AudioInfo {
+            channels: 0,
+            sample_rate: 0,
+            frames: 0,
+        };
+
+
+        let result = unsafe {
+            get_audio_info(random_clip_file().as_ptr(), &mut info)
+        };
+
+
         Self {
             clips: VecDeque::new(),
-            cache: HashMap::<OsString, Clip>::new(),
+            cache: HashMap::<String, Clip>::new(),
             frames: Vec::<Frame>::new(),
             playing: false,
             pedal: false,
             sender,
             receiver,
             midi_connection: None,
-            song_list: Vec::new(),
             songs_folder: PathBuf::new(),
             rewind: false,
             next: false,
             sample_rate: 0,
-            device: None,
+            // device: DeviceBuilder::playback()
+            //     .f32()
+            //     .playback_channels(2)
+            //     .sample_rate(SampleRate::Custom(info.sample_rate))
+            //     .with_callback(audio_device_callback),
             current_sample_index: 0,
-            current_clip: Some(OsString::new()),
+            // current_clip: Some(OsString::new()),
             // clip_slices: VecDeque::new(),
         } // Self
     } // new
 
     pub fn init(&mut self) -> Result<(), Error> {
-        self.get_song_list()?;
         debug(&format!("Searching for the `songs` folder..."));
         self.songs_folder = session_folder()?.join(SONGS_DIR_NAME);
         self.get_keyboard_events();
         self.start_midi();
         // self.start_audio();
-        self.play_list();
         
+
         let mut audio_info = AudioInfo {
             channels: 0,
             sample_rate: 0,
             frames: 0,
         };
 
-        let channels = audio_info.channels;
-        let sample_rate = audio_info.sample_rate;
-        let frames = audio_info.frames;
+        let filename = random_clip_file();
 
-        let clips_folder = self.songs_folder
-                           .join(&self.song_list[0])
-                           .join(CLIPS_DIR_NAME);
-
-        let mut files: Vec<_> = fs::read_dir(clips_folder)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let path = &files[0];
-
-        let filename = CString::new(
-            path.path().to_str()
-                .ok_or_else(|| Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "Invalid filename",
-                ))?
-        )?;
-        
         let result = unsafe {
             get_audio_info(filename.as_ptr(), &mut audio_info)
         };
 
-        // self.current_sample_index = 0;
+        /*let result = unsafe {
+            get_audio_info(self.random_clip_file().expect("Can't find a random clip file!"), &mut audio_info)
+        };
+        */
+
+        let channels = audio_info.channels;
+        let sample_rate = audio_info.sample_rate;
+        let frames = audio_info.frames;
                 
-        self.device = Some(
-            DeviceBuilder::playback()
-                .f32()
-                .playback_channels(2)
-                .sample_rate(SampleRate::Custom(audio_info.sample_rate))
-
-                .with_callback(|_device, output| {
-
-                    let requested_samples = output.len();
-                    
-                    // info(&format!("`output` type: {}", std::any::type_name_of_val(output)));
-                    info(&format!("Number of frames requested: {}",
-                                  output.len() / usize::try_from(audio_info.channels).unwrap()));
-
-
-                    if (!self.playing) {
-                        output.fill(0.0);
-                        return;
-                    } // if !self.playing
-                        
-                    else {
-                        if self.current_clip.is_none() {
-                            self.current_clip = self.next_clip();
-                        
-                            if self.current_clip.is_none() { // song is over
-                                self.playing = false;
-                                output.fill(0.0);
-                                return;
-                            }
-                        
-                            // self.current_sample_index = 0;
-
-                            let mut start = self.current_sample_index;
-                            self.current_sample_index += requested_samples;
-
-                            if self.current_sample_index < self.cache[self.current_clip.as_ref().unwrap()].samples.len() {
-                                output.copy_from_slice(&self.cache[self.current_clip.as_ref().unwrap()].samples.data[start..self.current_sample_index]);
-                                // https://doc.rust-lang.org/stable/std/vec/struct.Vec.html#method.copy_from_slice
-                            } // if index < len()
-                            else // Finish the current clip and start on the next one.
-                            {
-                                
-                                output.copy_from_slice(&self.cache[self.current_clip.as_ref().unwrap()].samples.data[start..self.cache[self.current_clip.as_ref().unwrap()].samples.data.len()]);
-                                let first_sample_len = self.cache[self.current_clip.as_ref().unwrap()].samples.len() - start;
-                                let samples_still_needed = requested_samples - first_sample_len;
-
-                                self.current_clip = self.next_clip();
-                            
-                                if self.current_clip.is_none() { // song is over
-                                    self.playing = false;
-                                    
-                                    // Instead of output.fill(0.0); just fill the rest of output
-                                    output[first_sample_len..requested_samples].fill(0.0);
-                                    
-                                    
-                                    return;
-                                } // current clip is none
-
-                                // Fill the rest of output with the start of the next clip
-                                
-                            } // Next clip needed to fill output
-                            
-                            
-                        } // current_clip.is_none                        
-                    } // else
-                // while current_sample_index < 
-                
-                // output.fill(0.0);
-                }).map_err(|e| Error::new(std::io::ErrorKind::Other, e))?,
-        );
         // self.current_clip = self.next_clip();
-        self.device.as_mut().expect("Audio device error").device_start()
-            .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
+        self.play_list();
 
         Ok(())
     } // init
@@ -293,23 +279,6 @@ impl Player {
     
     } // start_midi
 
-    pub fn get_song_list(&mut self) -> Result<(), Error> {
-        let arguments = &ARGUMENTS.get().unwrap().args;
-        let nargs = arguments.len();
-        if let Some(input) = INPUT.get() {
-            self.song_list = input.lines().map(str::to_owned).collect();
-        } else if nargs > 0 {
-            self.song_list = read_lines(&arguments[0])?;
-        } else {
-            self.song_list = get_most_recent_song_list()?;
-        }
-        while self.song_list.last().is_some_and(|s| s.is_empty()) {
-            self.song_list.pop();
-        }
-        trace(&format!("Songs: {:#?}", self.song_list));
-        Ok(())
-
-    }
     
     pub fn parse(&mut self, pattern: Pattern) -> Result<(), Error> {
         // Wait for the sustain pedal to begin parsing (playing) the pattern
@@ -396,24 +365,27 @@ impl Player {
                     break;
                 }
                 _ => {}
-                // PlayerEvent::Escape => {
-                //     self.playing = false;
-                //     break;
-                // }
-                // PlayerEvent::Rewind => self.rewind = true,
-                // PlayerEvent::Next => self.next = true,
             }
         }
     }
 
-    fn next_clip(&mut self) -> Option<OsString> {
-        Some(
-            OsString::from("placeholder") // name of a clip from the top pattern on the stack
-        )
+    pub fn next_clip(&mut self) -> String {
+        if self.clips.is_empty() {
+            return String::from("");
+        }
+        self.clips[0].clone()
     }
-    
-    fn play_list(&mut self) -> Result<(), Error> {
-        for song_title in self.song_list.clone() {
+
+    pub fn current_clip(&mut self) -> String {
+        if self.clips.is_empty() {
+            return String::from("");
+        }
+        self.clips[0].clone()
+    }
+
+    pub fn play_list(&mut self) -> Result<(), Error> {
+        let song_list = SONG_LIST.lock().unwrap();
+        for song_title in song_list.clone() {
             let song_folder = session_folder()?
                               .join(SONGS_DIR_NAME)
                               .join(song_title);
@@ -427,7 +399,8 @@ impl Player {
             self.frames.push(song_frame);
 
             for f in clip_files {
-                let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+                debug("Loading clip files").expect("");
+                let key: String = f.path().file_stem().expect("").to_owned().to_string_lossy().into_owned();
                 match Clip::from_file(f.path()) {
                     Ok(clip) => {
                         self.cache.insert(key.clone(), clip); 
@@ -447,44 +420,56 @@ impl Player {
     } // play_list
 
     fn play_song(&mut self) -> Result<(), Error> {
-        self.current_clip = self.next_clip();
+        debug("Playing song");
+        let current_clip = self.next_clip();
         Ok(())
     }
 
-    /// ⚠️ Deprecated
-    pub fn play(&mut self) -> Result<(), Error> {
-        self.init()?;
-        
-        for song_title in self.song_list.clone() {
-            info(&format!("Song: {}", song_title));
-            let song_folder = self.songs_folder.join(song_title);
-            let clips_folder = song_folder.join(CLIPS_DIR_NAME);
+    // pub fn start_audio_device(&self) {
+    //
+    //     let device = DEVICE.lock().unwrap().as_ref().unwrap();
+    //     debug("Starting audio device");
+    //     DEVICE.lock().unwrap().as_mut().unwrap().device_start()
+    //         .map_err(|e| Error::new(std::io::ErrorKind::Other, e))
+    //         .expect("");
+    //     debug("Audio device started.");
+    // }
 
-            let files: Vec<_> = fs::read_dir(clips_folder)?
-                .collect::<Result<Vec<_>, _>>()?;
+//     /// ⚠️ Deprecated
+//     pub fn play(&mut self) -> Result<(), Error> {
+//         self.init()?;
+//
+//         for song_title in self.song_list.clone() {
+//             info(&format!("Song: {}", song_title));
+//             let song_folder = self.songs_folder.join(song_title);
+//             let clips_folder = song_folder.join(CLIPS_DIR_NAME);
+//
+//             let files: Vec<_> = fs::read_dir(clips_folder)?
+//                 .collect::<Result<Vec<_>, _>>()?;
+//
+//             for f in files {
+//                 let key: OsString = f.path().file_stem().expect("REASON").to_owned();
+//                 match Clip::from_file(f.path()) {
+//                     Ok(clip) => {
+//                         self.cache.insert(key.clone(), clip);
+//                         info(&format!("Clip loaded: {:?}", key));
+//                     } // Ok
+//                     Err(e) => {
+//                         error(&format!("Clip could not be loaded from file: {:?}: {}", key, e));
+//                     } // Err
+//                 } // match
+//             } // for f
+//             let song_file = song_folder.join(SONG_FILE_NAME);
+//             let contents = fs::read_to_string(song_file)?;
+//             match json::parse(&contents) {
+//                 Ok(js) => { self.parse(Pattern::from_json_value(&js)?)?; }
+//                 Err(e) => { error("Error parsing JSON pattern!"); }
+//             } // match
+//         } // for song_title
+//
+//         Ok(())
+//     } // play
 
-            for f in files {
-                let key: OsString = f.path().file_stem().expect("REASON").to_owned();
-                match Clip::from_file(f.path()) {
-                    Ok(clip) => {
-                        self.cache.insert(key.clone(), clip); 
-                        info(&format!("Clip loaded: {:?}", key));            
-                    } // Ok
-                    Err(e) => {
-                        error(&format!("Clip could not be loaded from file: {:?}: {}", key, e)); 
-                    } // Err
-                } // match
-            } // for f
-            let song_file = song_folder.join(SONG_FILE_NAME);
-            let contents = fs::read_to_string(song_file)?;
-            match json::parse(&contents) {
-                Ok(js) => { self.parse(Pattern::from_json_value(&js)?)?; }
-                Err(e) => { error("Error parsing JSON pattern!"); }
-            } // match
-        } // for song_title
-        
-        Ok(())
-    } // play
 } // impl Player
 
 

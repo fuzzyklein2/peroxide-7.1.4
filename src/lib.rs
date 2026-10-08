@@ -58,6 +58,11 @@
 //! ## `patterns.rs`
 //! * **Line 26**:  Test using an Option as Pattern::repeat_count
 
+pub mod audio;
+pub use audio::audio_device_callback;
+// pub use audio::AudioDevice;
+// pub use audio::DEVICE;
+
 pub mod clips;
 pub use clips::AudioInfo;
 pub use clips::Clip;
@@ -67,6 +72,10 @@ pub mod files;
 
 pub mod frames;
 pub use frames::Frame;
+
+pub mod globals;
+// pub use globals::DEVICE;
+pub use globals::PLAYER;
 
 pub mod patterns;
 pub use patterns::Pattern;
@@ -83,3 +92,4 @@ pub mod traits;
 
 pub mod types;
 pub use types::u32_to_usize;
+
