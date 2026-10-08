@@ -5,7 +5,7 @@ use crate::{
     traits::FromPattern,
 };
 
-pub struct Frame{
+pub struct Frame {
     pub pattern: Pattern,
     pub iteration: u16,
     pub current_item: u16,

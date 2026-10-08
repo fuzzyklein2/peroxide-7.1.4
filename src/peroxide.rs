@@ -49,29 +49,6 @@ use crate::PLAYER;
 /// # 💬 Description
 /// 
 /// Just creates a `Player` object and calls its `play` function.
-// pub fn run() -> Result<(), Error> {
-//     let device = DeviceBuilder::playback()
-//         .f32()
-//         .playback_channels(2)
-//         .sample_rate(SampleRate::Sr44100)
-//         .with_callback(audio_device_callback);
-//
-//     let mut player = Player::new();
-//     debug("Running peroxide").expect("");
-//     player.init()?;
-//
-//     *PLAYER.lock().unwrap() = player;
-//
-//     device.unwrap().device_start()?;
-//
-//     PLAYER.lock().unwrap().play_list()?;
-//
-//     device.device_start().expect("Failed to start audio device");
-//     player.play_list()?;
-//     // TODO: Implement the curses style interface in the comment below.
-//     Ok(())
-// }
-
 pub fn run() -> Result<(), Error> {
     let mut device = DeviceBuilder::playback()
     .f32()
@@ -86,9 +63,8 @@ pub fn run() -> Result<(), Error> {
 
     *PLAYER.lock().unwrap() = player;
 
-    device
-    .device_start()
-    .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
+    device.device_start()
+        .map_err(|e| Error::new(std::io::ErrorKind::Other, e))?;
 
     PLAYER.lock().unwrap().play_list()?;
 
