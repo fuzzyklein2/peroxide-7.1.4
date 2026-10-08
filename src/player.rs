@@ -280,70 +280,70 @@ impl Player {
     } // start_midi
 
     
-    pub fn parse(&mut self, pattern: Pattern) -> Result<(), Error> {
-        // Wait for the sustain pedal to begin parsing (playing) the pattern
-        if !self.playing {
-            while !self.pedal {
-                self.poll_events(); 
-            } // while
-        } // if !playing
-        debug("Pedal event received!\nStarting playback...");
-        self.pedal = false;
-        self.playing = true;
-        
-        match pattern.value {
-            JsonValue::Array(a) => self.parse_items(
-                &Pattern::from_json_value(&json::from(a))?, 
-                &pattern.repeat_count
-            ), // parse_items
-            _ => {
-                error("Pattern must be an array!");
-                Ok(())
-            } // error
-        } // match
-    } // parse
-
-    /// Parse a pattern recursively
-    pub fn parse_items(&mut self, pattern: &Pattern, repeat_count: &u16) -> Result<(), Error> {
-        // ...
-        debug(&format!("Parsing pattern: {:?}", pattern));
-        let mut iteration = 0;
-        let repeats = match *repeat_count {
-            0 => 10000,
-            n => n,
-        };
-        while iteration < repeats {
-            for i in 0..pattern.value.len() {
-                match &pattern.value[i] {
-                    JsonValue::Number(n) => {
-                        // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
-                        // if repeat_count == 0 { repeat_count = usize::MAX; }
-                    } // Number
-                    JsonValue::Array(a) => {
-                        self.parse_items(
-                            &Pattern::from_json_value(&JsonValue::Array(a.clone()))?,
-                            &repeat_count
-                        )?;
-                    } // Array
-                    JsonValue::Short(s) => { 
-                        debug(&format!("Clip: {:?}", s));
-                        self.clips.push_back(s.to_string());
-                    } // Short
-                    _ => {
-                        error("Parsing error!");
-                    } // _ (error)
-                } // match
-            } // for 
-            iteration += 1;
-            // Finite repetitions need to actually be dealt with soon
-            // This is probably where we need to pause and let the audio finish
-            if self.pedal {
-                self.pedal = false;
-                break;
-            } // if
-        } // while
-        Ok(())
-    } // parse_items
+//     pub fn parse(&mut self, pattern: Pattern) -> Result<(), Error> {
+//         // Wait for the sustain pedal to begin parsing (playing) the pattern
+//         if !self.playing {
+//             while !self.pedal {
+//                 self.poll_events();
+//             } // while
+//         } // if !playing
+//         debug("Pedal event received!\nStarting playback...");
+//         self.pedal = false;
+//         self.playing = true;
+//
+//         match pattern.value {
+//             JsonValue::Array(a) => self.parse_items(
+//                 &Pattern::from_json_value(&json::from(a))?,
+//                 &pattern.repeat_count
+//             ), // parse_items
+//             _ => {
+//                 error("Pattern must be an array!");
+//                 Ok(())
+//             } // error
+//         } // match
+//     } // parse
+//
+//     /// Parse a pattern recursively
+//     pub fn parse_items(&mut self, pattern: &Pattern, repeat_count: &u16) -> Result<(), Error> {
+//         // ...
+//         debug(&format!("Parsing pattern: {:?}", pattern));
+//         let mut iteration = 0;
+//         let repeats = match *repeat_count {
+//             0 => 10000,
+//             n => n,
+//         };
+//         while iteration < repeats {
+//             for i in 0..pattern.value.len() {
+//                 match &pattern.value[i] {
+//                     JsonValue::Number(n) => {
+//                         // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
+//                         // if repeat_count == 0 { repeat_count = usize::MAX; }
+//                     } // Number
+//                     JsonValue::Array(a) => {
+//                         self.parse_items(
+//                             &Pattern::from_json_value(&JsonValue::Array(a.clone()))?,
+//                             &repeat_count
+//                         )?;
+//                     } // Array
+//                     JsonValue::Short(s) => {
+//                         debug(&format!("Clip: {:?}", s));
+//                         self.clips.push_back(s.to_string());
+//                     } // Short
+//                     _ => {
+//                         error("Parsing error!");
+//                     } // _ (error)
+//                 } // match
+//             } // for
+//             iteration += 1;
+//             // Finite repetitions need to actually be dealt with soon
+//             // This is probably where we need to pause and let the audio finish
+//             if self.pedal {
+//                 self.pedal = false;
+//                 break;
+//             } // if
+//         } // while
+//         Ok(())
+//     } // parse_items
 
     fn poll_events(&mut self) {
         while let Ok(event) = self.receiver.try_recv() {
