@@ -16,9 +16,9 @@ use crate::traits::{
 
 #[derive(Clone, Debug)]
 pub struct Pattern {
-    pub repeat_count: u16,
+    pub repeat_count: usize,
     pub value: JsonValue,
-    pub pause: bool,
+    // pub pause: bool,
     pub infinite: bool,
 }
 
@@ -33,7 +33,6 @@ impl FromFile for Pattern {
 impl FromString for Pattern {
     fn from_string(s: &str) -> Result<Self, Error> {
         let js = json::parse(&s).unwrap();
-        let repeat_count = 1;
         Ok(Pattern::from_json_value(&js)?)
     } // from_string
 } // impl
@@ -41,11 +40,12 @@ impl FromString for Pattern {
 impl FromJsonValue for Pattern {
     fn from_json_value(js: &JsonValue) -> Result<Self, Error> {
         let mut repeat_count = 1;
+        let mut infinite = false;
         for i in 0..js.len() {
             match js[i] {
                 JsonValue::Number(n) => {
                     repeat_count = n.as_fixed_point_i64(0).unwrap() as u16;
-                    if repeat_count == 0 { repeat_count = 10000; }
+                    if repeat_count == 0 { infinite = true; }
                     break;
                 } // Number
                 _ => { error("Bad pattern element"); }
@@ -55,8 +55,7 @@ impl FromJsonValue for Pattern {
             Self {
                 repeat_count,
                 value: js.clone(),
-                pause: false,
-                infinite: false,
+                infinite: infinite,
             } // Self
         ) // Ok        
     } // from_json_value
@@ -80,7 +79,6 @@ impl FromVector<JsonValue> for Pattern {
             Self {
                 repeat_count,
                 value: a,
-                pause: false,
                 infinite: false,
             } // Self
         ) //Ok

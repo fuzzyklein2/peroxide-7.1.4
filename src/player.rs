@@ -134,27 +134,13 @@ pub struct Player {
     rewind: bool,
     next: bool,
     sample_rate: u32,
-    // device: Result<Device<f32>, MaudioError>,
     pub current_sample_index: usize,
     // clip_slices: VecDeque<Vec<f32>>,
-    // current_clip: Option<OsString>,
 } // Player
 
 impl Player {
     pub fn new () -> Self {
         let(sender, receiver) = channel::<PlayerEvent>();
-
-        // let mut info = AudioInfo {
-        //     channels: 0,
-        //     sample_rate: 0,
-        //     frames: 0,
-        // };
-        //
-        //
-        // let result = unsafe {
-        //     get_audio_info(random_clip_file().as_ptr(), &mut info)
-        // };
-
 
         Self {
             clips: VecDeque::new(),
@@ -294,16 +280,173 @@ impl Player {
         }
     }
 
+    pub fn pattern_advance(&mut self) {
+        loop {
+            let top = self.frames.len() - 1;
+
+            if self.frames[top].current_item >= self.frames[top].pattern.value.len() {
+                self.frames[top].current_repeat += 1;
+                let mut done = true;
+
+                if (self.frames[top].infinite && !self.pedal)
+                    || (self.frames[top].current_repeat < self.frames[top].repeat_count)
+                    {
+                        done = false;
+                        self.frames[top].current_item = 0;
+                    }
+
+                    if done {
+                        self.frames.pop();
+                    }
+
+                    continue;
+            }
+
+            break;
+        }
+
+        let top = self.frames.len() - 1;
+        let i = self.frames[top].current_item;
+
+        let value = self.frames[top].pattern.value[i].clone();
+
+        match value {
+            JsonValue::Array(a) => {
+                self.frames[top].current_item += 1;
+
+                let pattern =
+                Pattern::from_json_value(&JsonValue::Array(a))
+                .expect("");
+
+                self.frames.push(Frame::from_pattern(pattern));
+
+                return;
+            }
+
+            JsonValue::Short(s) => {
+                debug(&format!("Clip: {:?}", s));
+                self.clips.push_back(s.to_string());
+
+                self.frames[top].current_item += 1;
+                return;
+            }
+
+            JsonValue::Number(_) => {
+                self.frames[top].current_item += 1;
+            }
+
+            _ => {
+                error("Parsing error!");
+                self.frames[top].current_item += 1;
+                return;
+            }
+        }
+    }
+
+//     pub fn pattern_advance(&mut self) {
+//         loop {
+//             let top = self.frames.len() - 1;
+//             if self.frames[top].current_item >= self.frames[top].pattern.value.len() {
+//                 self.frames[top].current_repeat += 1;
+//                 done = true;
+//                 if (self.frames[top].infinite && !pedal) || (self.frames[top].current_repeat < self.frames[top].repeat_count) {
+//                     done = false;
+//                     self.frames[top].current_item = 0;
+//                 }
+//                 if done {
+//                     self.frames.pop();
+//                 }
+//                 continue;
+//             }
+//             break;
+//         }
+//
+//         let i = self.frames[top].current_item;
+//
+//         let value = self.frames[top].pattern.value[i].clone();
+//
+//         match value {
+//             JsonValue::Array(a) => {
+//                 self.frames[top].current_item += 1;
+//
+//                 let pattern =
+//                 Pattern::from_json_value(&JsonValue::Array(a))
+//                 .expect("");
+//
+//                 self.frames.push(Frame::from_pattern(pattern));
+//
+//                 return;
+//             }
+//
+//             JsonValue::Short(s) => {
+//                 debug(&format!("Clip: {:?}", s));
+//                 self.clips.push_back(s.to_string());
+//
+//                 self.frames[top].current_item += 1;
+//                 return;
+//             }
+//
+//             JsonValue::Number(_) => {
+//                 self.frames[top].current_item += 1;
+//             }
+//
+//             _ => {
+//                 error("Parsing error!");
+//                 self.frames[top].current_item += 1;
+//                 return;
+//             }
+//
+//         }
+//     }
+// }
+
+//     pub fn pattern_advance(&mut self) {
+//         // Actually the stack contains `Frame`s.
+//         let top = self.frames.len() - 1;
+//         let n = self.frames[top].pattern.value.len();
+//
+//         // But there's a deeper issue here! :D
+//         // What if the top pattern is finished and needs to be popped? :O
+//
+//
+//         for i in self.frames[top].current_item..n {
+//             let value = self.frames[top].pattern.value[i].clone();
+//             match value {
+//                 JsonValue::Number(n) => {}
+//                 JsonValue::Array(a) => {
+//                     self.frames[top].current_item = i + 1;
+//                     let pattern = Pattern::from_json_value(&JsonValue::Array(a))
+//                         .expect("");
+//                     self.frames.push(Frame::from_pattern(pattern));
+//                         // frame.current_item += 1;
+//                     break;
+//                 } // Array
+//                 JsonValue::Short(s) => {
+//                     debug(&format!("Clip: {:?}", s));
+//                     self.clips.push_back(s.to_string());
+//                 } // Short
+//                 _ => {
+//                     error("Parsing error!");
+//                 } // _ (error)
+//             } // match
+//             self.frames.current_item = i + 1;
+//         }
+//
+//     }
+
     pub fn next_clip(&mut self) -> String {
         if self.clips.is_empty() {
-            return String::from("");
+            self.pattern_advance();
+            if self.clips.is_empty() {
+                return String::from("");
+            }
         }
         self.clips[0].clone()
     }
 
     pub fn current_clip(&mut self) -> String {
         if self.clips.is_empty() {
-            return String::from("");
+            return self.next_clip();
         }
         self.clips[0].clone()
     }
@@ -432,25 +575,25 @@ impl Player {
 //         };
 //         while iteration < repeats {
 //             for i in 0..pattern.value.len() {
-//                 match &pattern.value[i] {
-//                     JsonValue::Number(n) => {
-//                         // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
-//                         // if repeat_count == 0 { repeat_count = usize::MAX; }
-//                     } // Number
-//                     JsonValue::Array(a) => {
-//                         self.parse_items(
-//                             &Pattern::from_json_value(&JsonValue::Array(a.clone()))?,
-//                             &repeat_count
-//                         )?;
-//                     } // Array
-//                     JsonValue::Short(s) => {
-//                         debug(&format!("Clip: {:?}", s));
-//                         self.clips.push_back(s.to_string());
-//                     } // Short
-//                     _ => {
-//                         error("Parsing error!");
-//                     } // _ (error)
-//                 } // match
+                // match &pattern.value[i] {
+                //     JsonValue::Number(n) => {
+                //         // repeat_count = n.as_fixed_point_i64(0).unwrap() as usize;
+                //         // if repeat_count == 0 { repeat_count = usize::MAX; }
+                //     } // Number
+                //     JsonValue::Array(a) => {
+                //         self.parse_items(
+                //             &Pattern::from_json_value(&JsonValue::Array(a.clone()))?,
+                //             &repeat_count
+                //         )?;
+                //     } // Array
+                //     JsonValue::Short(s) => {
+                //         debug(&format!("Clip: {:?}", s));
+                //         self.clips.push_back(s.to_string());
+                //     } // Short
+                //     _ => {
+                //         error("Parsing error!");
+                //     } // _ (error)
+                // } // match
 //             } // for
 //             iteration += 1;
 //             // Finite repetitions need to actually be dealt with soon

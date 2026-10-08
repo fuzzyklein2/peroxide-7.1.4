@@ -7,21 +7,26 @@ use crate::{
 
 pub struct Frame {
     pub pattern: Pattern,
-    pub iteration: u16,
-    pub current_item: u16,
-    // pub repetitions: u16,
+    pub current_item: usize,
+    pub repeat_count: usize,
+    pub current_repeat: usize,
+    pub infinite: bool,
+    pub pause: bool,
     // pub duration: f64, // milliseconds
 }
 
-
 impl FromPattern for Frame {
     fn from_pattern(p: Pattern) -> Self {
+        let reps = p.repeat_count;
+        let inf = p.infinite;
         // Ok(
             Self {
                 pattern: p,
-                iteration: 0,
                 current_item: 0,
-                // repetitions: p.repeat_count,
+                repeat_count: reps,
+                current_repeat: 0,
+                infinite: inf,
+                pause: false,
             } // Self
         // ) // Ok        
     } // from_json_value

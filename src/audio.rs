@@ -50,6 +50,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
         // Fill the rest of output with the start of the next clip
         output[first_sample_len..requested_samples]
             .copy_from_slice(&player.cache[&clip_name][0..samples_still_needed]);
+        player.current_sample_index = samples_still_needed;
     } // else
     return;
 } // audio_callback
