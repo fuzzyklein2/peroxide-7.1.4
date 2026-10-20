@@ -26,6 +26,8 @@
 //! 
 //! Distribute these to whichever crates need them.
 
+#![allow(warnings)]
+
 // TODO: Get this file to run and run it with -h ==> SYNOPSIS
 // TODO: Write some unit tests
 // #[cfg(test)]
@@ -34,7 +36,7 @@
 use std::io::Error;
 
 use maudio::audio::sample_rate::SampleRate;
-use maudio::device::{CallBackDevice, Device};
+// use maudio::device::{CallBackDevice, Device};
 use maudio::device::device_builder::DeviceBuilder;
 use maudio::device::device_builder::DeviceBuilderOps;
 

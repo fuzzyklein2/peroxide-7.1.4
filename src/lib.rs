@@ -20,13 +20,13 @@
 //! 
 //! # 📖 Usage
 //! 
-//! ```
+//! ```bash
 //! peroxide [OPTIONS] [ARGS]...
 //! ```
 //! 
 //! ## Arguments:
 //! 
-//! ```
+//! ```bash
 //!   [ARGS]...  Other arguments
 //! ```
 //! Song lists to play. Only one is currently supported. Piped input,
@@ -35,7 +35,7 @@
 //! 
 //! ## Options
 //! 
-//! ```
+//! ```bash
 //!   -d, --debug    Enable debug logging
 //!   -v, --verbose  Enable verbose logging
 //!   -w, --warn     Enable warnings
@@ -57,6 +57,8 @@
 //! * **Line 41**:  Implement the curses style interface in the comment below.
 //! ## `patterns.rs`
 //! * **Line 26**:  Test using an Option as Pattern::repeat_count
+//!
+//! <script>console.log("Hello from rustdoc!");</script>
 
 pub mod audio;
 pub use audio::audio_device_callback;

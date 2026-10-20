@@ -77,7 +77,7 @@ impl FromFile for Clip {
         };
         
         if result != 0 {
-            error("Can't load audio clip!");
+            error("Can't load audio clip!").expect("");
             return Err(Error::new(ErrorKind::Other, "Can't load audio clip!"));
         }
 

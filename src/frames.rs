@@ -1,4 +1,4 @@
-use std::io::Error;
+// use std::io::Error;
 
 use crate::{
     Pattern,

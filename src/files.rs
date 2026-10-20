@@ -25,7 +25,7 @@ pub fn get_most_recent_song_list() -> Result<Vec<String>, io::Error> {
         .collect::<Result<Vec<_>, _>>()?;
     // TODO: Find or write a function to determine if a directory is empty.
     if dir_content.is_empty() {
-        error("Song lists directory is empty!");
+        error("Song lists directory is empty!").expect("");
     }
     let n = dir_content.len();
     let i = n - 1;

@@ -8,6 +8,7 @@ use crate::PLAYER;
 static CALLBACK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
+    println!("Audio device callback called...");
     let count = CALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
     if count < 12 {
         // debug(&format!("Callback count: {}", count + 1)).expect("");
@@ -19,6 +20,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
         // debug("`player.playing` is false").expect("");
         // Send silence for now
         output.fill(0.0);
+        println!("Audio callback complete. Sent silence.");
         return;
     }
     let requested_samples = output.len();
@@ -27,6 +29,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
         clip_name = player.next_clip();
         if clip_name.is_empty() {
             output.fill(0.0);
+            println!("Audio callback complete. Clip queue was empty.");
             return;
         } // if !current_clip
     } // if !current_clip
@@ -34,6 +37,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
     player.current_sample_index += requested_samples;
     if player.current_sample_index < player.cache[&clip_name].length() {
         output.copy_from_slice(&player.cache[&clip_name][start..player.current_sample_index]);
+        println!("Audio callback complete. Clip present in queue.");
         return;
     } // if index < len()
     else {
@@ -45,6 +49,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
         if clip_name.is_empty() {
             player.playing = false;
             output[first_sample_len..requested_samples].fill(0.0);
+            println!("Audio callback complete. No clip in the queue. Song over?");
             return;
         } // if !current_clip
         // Fill the rest of output with the start of the next clip
@@ -52,6 +57,7 @@ pub fn audio_device_callback(_device: CallBackDevice, output: &mut [f32]) {
             .copy_from_slice(&player.cache[&clip_name][0..samples_still_needed]);
         player.current_sample_index = samples_still_needed;
     } // else
+    println!("Audio callback complete. Started loading a new clip.");
     return;
 } // audio_callback
 

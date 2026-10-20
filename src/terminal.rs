@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use std::io::{Error, stdout};
 
 use crossterm::{ execute, ExecutableCommand, QueueableCommand,
